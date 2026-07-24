@@ -88,8 +88,30 @@ function connect() {
   const url = CFG.WS_URL || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
   const ws = new WebSocket(url);
   state.ws = ws;
+
+  ws.onopen = () => {
+    state.connected = true;
+    state.retries = 0;
+    if ($('lobbyError').textContent === 'Disconnected from server.' ||
+        $('lobbyError').textContent.startsWith('Connecting')) {
+      $('lobbyError').textContent = '';
+    }
+  };
   ws.onmessage = (ev) => handle(JSON.parse(ev.data));
-  ws.onclose = () => { $('lobbyError').textContent = 'Disconnected from server.'; };
+  ws.onclose = () => {
+    state.connected = false;
+    // Free hosting (e.g. Render) spins the server down when idle; the first
+    // connection can be refused while it wakes. Retry with backoff instead of
+    // giving up so the game becomes playable once the instance is warm.
+    const n = (state.retries = (state.retries || 0) + 1);
+    if (n <= 8) {
+      const wait = Math.min(1000 * n, 5000);
+      $('lobbyError').textContent = `Connecting to server… (waking up, attempt ${n})`;
+      setTimeout(connect, wait);
+    } else {
+      $('lobbyError').textContent = 'Disconnected from server. Refresh to retry.';
+    }
+  };
   return ws;
 }
 function sendWS(obj) {
