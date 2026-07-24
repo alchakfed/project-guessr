@@ -203,6 +203,7 @@ function startRound(msg) {
 
   // Scoring is pinned to where the round starts; roaming never moves this.
   state.startFolder = msg.folder;
+  preloadedPanos.clear();
   loadPanorama(msg.folder, { freshView: true });
 
   // ---- Guess map (recreate each round) ----
@@ -276,6 +277,26 @@ function loadPanorama(folder, { freshView = false } = {}) {
   // Show a small "you've moved" hint when off the start panorama.
   const moved = folder !== state.startFolder;
   $('roamHint').classList.toggle('hidden', !moved);
+
+  // Warm the browser cache with every neighbour's faces so roaming is instant.
+  preloadNeighbours(folder);
+}
+
+// Prefetch the cubemap faces of every panorama the player can walk to from
+// `folder`. Uses Image() so the browser caches them; clicking an arrow then
+// loads from cache with no network wait. Cached across the round so we never
+// re-request a face we've already warmed.
+const preloadedPanos = new Set();
+function preloadNeighbours(folder) {
+  for (const n of neighboursFor(folder)) {
+    if (preloadedPanos.has(n.to)) continue;
+    preloadedPanos.add(n.to);
+    for (const src of panoUrls(n.to)) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = src;
+    }
+  }
 }
 
 // Builds the arrow element for a hotspot. Pannellum calls this with the
@@ -314,10 +335,11 @@ function makeWorldMap(elementId) {
  *  -scale*Z), i.e. exactly Dynmap's `worldtomap`, and latLng carries raw
  *  world coords (lat=Z, lng=X) so worldToLatLng/latLngToWorld are trivial.
  *
- *  Tile addressing (Dynmap HD flat map), verified against the live server:
+ *  Tile addressing — matches LiveAtlas/Dynmap DynmapTileLayer.getTileName:
  *    n      = nativeZoom - leafletZoom      (# of 'z' zoom-out prefixes)
- *    fx,fy  = tileX*2^n, tileY*2^n          (coords are in native-tile units)
- *    folder = floor(fx/32)_floor(fy/32)
+ *    fx     =  tileX*2^n
+ *    fy     = -tileY*2^n                    (Y is INVERTED for the HD map)
+ *    folder = (fx>>5)_(fy>>5)               (>>5 == floor(/32) for integers)
  *    name   = ('z'*n)['_' if n>0] + fx_fy.ext
  * ------------------------------------------------------------------ */
 function makeDynmapCRS() {
@@ -337,8 +359,9 @@ const DynmapTileLayer = L.TileLayer.extend({
     const n = DM.nativeZoom - coords.z;
     const f = Math.pow(2, n);
     const fx = coords.x * f;
-    const fy = coords.y * f;
-    const folder = `${Math.floor(fx / 32)}_${Math.floor(fy / 32)}`;
+    const fy = -coords.y * f; // Dynmap inverts Y for the HD map
+    // >>5 is floor(/32) for the integer tile coords (works for negatives too).
+    const folder = `${fx >> 5}_${fy >> 5}`;
     const pre = 'z'.repeat(n) + (n > 0 ? '_' : '');
     return `${DM.baseUrl}/${DM.world}/${DM.prefix}/${folder}/${pre}${fx}_${fy}.${DM.ext}`;
   },
