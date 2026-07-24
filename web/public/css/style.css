@@ -1,0 +1,193 @@
+:root {
+  --bg: #1a1c22;
+  --panel: #24272f;
+  --panel-2: #2d313b;
+  --accent: #55c157;
+  --accent-2: #3a9d3c;
+  --text: #e8eaed;
+  --muted: #9aa0aa;
+  --error: #ff6b6b;
+  --border: #3a3f4b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+.screen { display: none; height: 100vh; width: 100vw; }
+.screen.active { display: block; }
+
+/* ---- Lobby / room cards ---- */
+#lobby, #room {
+  display: none;
+  place-items: center;
+  padding: 24px;
+  overflow: auto;
+}
+#lobby.active, #room.active { display: grid; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 32px;
+  width: min(680px, 92vw);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+
+h1 { margin: 0 0 4px; font-size: 34px; }
+h2 { margin: 0 0 8px; }
+h3 { margin: 0 0 12px; color: var(--muted); font-weight: 600; }
+.subtitle { color: var(--muted); margin-top: 4px; }
+
+label { display: block; margin: 14px 0 4px; font-size: 14px; color: var(--muted); }
+input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.row { display: flex; gap: 24px; margin-top: 18px; }
+.col { flex: 1; background: var(--panel-2); border-radius: 10px; padding: 16px; }
+
+button {
+  margin-top: 16px;
+  width: 100%;
+  padding: 11px 16px;
+  background: var(--accent);
+  color: #10230f;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+button:hover:not(:disabled) { background: var(--accent-2); }
+button:disabled { background: #444a55; color: #808690; cursor: not-allowed; }
+
+.code {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 4px;
+  background: var(--panel-2);
+  padding: 2px 10px;
+  border-radius: 6px;
+}
+
+.players { list-style: none; padding: 0; margin: 16px 0; }
+.players li {
+  padding: 10px 14px;
+  background: var(--panel-2);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.players .host-badge { color: var(--accent); font-size: 12px; font-weight: 700; }
+
+.error { color: var(--error); min-height: 18px; margin-top: 10px; }
+.hidden { display: none !important; }
+
+/* ---- Game ---- */
+#game { position: relative; background: #000; }
+#panorama { position: absolute; inset: 0; }
+
+#hud {
+  position: absolute; top: 12px; left: 12px; z-index: 20;
+  background: rgba(0,0,0,0.55);
+  padding: 8px 14px; border-radius: 8px;
+  font-size: 15px; pointer-events: none;
+}
+#guessStatus { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+#mapPanel {
+  position: absolute; bottom: 16px; right: 16px; z-index: 20;
+  width: 340px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  transition: width 0.2s, height 0.2s;
+}
+#mapPanel:hover { width: 460px; }
+#map { width: 100%; height: 260px; border-radius: 6px; background: #111; }
+#mapPanel:hover #map { height: 360px; }
+#guessBtn { margin-top: 8px; }
+
+/* Leaflet dark tweaks */
+.leaflet-container { background: #111; }
+
+/* ---- Overlays ---- */
+.overlay {
+  position: absolute; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  background: rgba(0,0,0,0.7);
+  padding: 24px; overflow: auto;
+}
+#resultMiniMap { width: 100%; height: 320px; border-radius: 8px; margin: 12px 0; background: #111; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.you { color: var(--accent); font-weight: 700; }
+
+/* Map markers */
+.guess-pin { filter: drop-shadow(0 0 3px #000); }
+
+/* ---- Street-View movement arrows (Pannellum hotspots) ---- */
+.pg-arrow {
+  width: 54px;
+  height: 54px;
+  margin-left: -27px;
+  margin-top: -27px;
+  cursor: pointer;
+}
+.pg-arrow-chevron {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  line-height: 1;
+  color: #fff;
+  /* Glyph points right by default; rotate so it points "forward"/up. */
+  transform: rotate(-90deg);
+  border-radius: 50%;
+  background: rgba(20, 22, 28, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  transition: background 0.12s, transform 0.12s;
+}
+.pg-arrow:hover .pg-arrow-chevron {
+  background: var(--accent);
+  color: #10230f;
+  transform: rotate(-90deg) scale(1.12);
+}
+
+/* "You've moved" hint + inline link button in the HUD */
+#roamHint { font-size: 13px; color: var(--muted); margin-top: 4px; pointer-events: auto; }
+.link-btn {
+  display: inline;
+  width: auto;
+  margin: 0 0 0 4px;
+  padding: 0;
+  background: none;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn:hover:not(:disabled) { background: none; color: var(--accent-2); }

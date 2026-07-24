@@ -1,0 +1,17 @@
+{
+  "name": "projectguessr-tools",
+  "version": "1.0.0",
+  "description": "Data-prep tooling: stitch JourneyMap tiles into a map image and build the game manifest from the mod's capture log.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:map": "node build-map.js",
+    "build:manifest": "node build-manifest.js",
+    "copy:panoramas": "node copy-panoramas.js",
+    "build:all": "node build-map.js && node build-manifest.js && node copy-panoramas.js"
+  },
+  "dependencies": {
+    "sharp": "^0.33.5",
+    "yargs": "^17.7.2"
+  }
+}

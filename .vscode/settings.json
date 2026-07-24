@@ -1,0 +1,7 @@
+{
+    "claudeEase.mode": "balanced",
+    "claudeEase.model": "agentrouter/kimi-k3",
+    "claudeEase.permissionMode": "bypassPermissions",
+    "claudeEase.urgent": false,
+    "java.configuration.updateBuildConfiguration": "interactive"
+}

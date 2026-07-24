@@ -1,0 +1,30 @@
+# --- Mod (Gradle / Fabric) ---
+mod/.gradle/
+mod/build/
+mod/run/
+mod/.loom-cache/
+mod/gradle/wrapper/gradle-wrapper.jar
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# --- Local JourneyMap snapshot (large, personal) ---
+journeymap-surface/
+
+# --- Game data (committed so Render/host can serve a playable app) ---
+# These are produced by tools/ but are small after compression, so we ship them.
+# NOTE: manifest.json holds the true answer coordinates. server.js loads it from
+# disk and explicitly blocks it from being served, so committing it is safe as
+# long as you deploy the SERVER (Render), not a static host. Do NOT expose it on
+# GitHub Pages / Netlify / any static host.
+
+# --- Local / personal (never publish) ---
+.claude/settings.local.json
+.claude/projects/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+*.log

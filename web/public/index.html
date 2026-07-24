@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProjectGuessr — Minecraft GeoGuessr</title>
+
+  <!-- Pannellum (360 panorama viewer) and Leaflet (guess map) from CDN.
+       To run fully offline, download these into public/vendor/ and update the
+       hrefs. See README "Vendoring assets". -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- ===== Lobby ===== -->
+  <div id="lobby" class="screen active">
+    <div class="card">
+      <h1>ProjectGuessr</h1>
+      <p class="subtitle">GeoGuessr, but in your own Minecraft world.</p>
+
+      <label>Your name
+        <input id="nameInput" type="text" maxlength="24" placeholder="Steve" />
+      </label>
+
+      <div class="row">
+        <div class="col">
+          <h3>Create a game</h3>
+          <label>Rounds
+            <input id="roundsInput" type="number" min="1" max="50" value="5" />
+          </label>
+          <button id="createBtn">Create room</button>
+        </div>
+        <div class="col">
+          <h3>Join a game</h3>
+          <label>Room code
+            <input id="codeInput" type="text" maxlength="4" placeholder="ABCD" style="text-transform:uppercase" />
+          </label>
+          <button id="joinBtn">Join room</button>
+        </div>
+      </div>
+      <p id="lobbyError" class="error"></p>
+    </div>
+  </div>
+
+  <!-- ===== Room (waiting) ===== -->
+  <div id="room" class="screen">
+    <div class="card">
+      <h2>Room <span id="roomCode" class="code"></span></h2>
+      <p class="subtitle">Share the code with friends on your network.</p>
+      <ul id="playerList" class="players"></ul>
+      <button id="startBtn" class="hidden">Start game</button>
+      <p id="waitMsg" class="subtitle">Waiting for the host to start…</p>
+    </div>
+  </div>
+
+  <!-- ===== Game ===== -->
+  <div id="game" class="screen">
+    <div id="panorama"></div>
+
+    <div id="hud">
+      <div id="roundInfo">Round 1 / 5</div>
+      <div id="guessStatus"></div>
+      <div id="roamHint" class="hidden">
+        You've moved from the start. <button id="backToStartBtn" class="link-btn">Back to start</button>
+      </div>
+    </div>
+
+    <div id="mapPanel">
+      <div id="map"></div>
+      <button id="guessBtn" disabled>Place a pin to guess</button>
+    </div>
+
+    <!-- Round result overlay -->
+    <div id="resultOverlay" class="overlay hidden">
+      <div class="card">
+        <h2 id="resultTitle">Round result</h2>
+        <div id="resultMiniMap"></div>
+        <table id="resultTable"></table>
+        <button id="nextBtn" class="hidden">Next round</button>
+        <p id="waitNext" class="subtitle hidden">Waiting for the host…</p>
+      </div>
+    </div>
+
+    <!-- Final scoreboard overlay -->
+    <div id="finalOverlay" class="overlay hidden">
+      <div class="card">
+        <h2>Final scores</h2>
+        <table id="finalTable"></table>
+        <button id="playAgainBtn">Back to lobby</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

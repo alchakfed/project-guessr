@@ -1,0 +1,12 @@
+{
+  "key.projectguessr.capture": "Take panorama",
+  "key.projectguessr.toggle_auto": "Toggle auto-capture",
+  "key.categories.projectguessr.main": "ProjectGuessr",
+  "projectguessr.hud.auto_on": "Auto-capture: ON (%s)",
+  "projectguessr.hud.auto_off": "Auto-capture: OFF (%s)",
+  "projectguessr.msg.captured": "Panorama %s saved (%s, %s, %s)",
+  "projectguessr.msg.auto_on": "Auto-capture enabled (every %s blocks)",
+  "projectguessr.msg.auto_off": "Auto-capture disabled",
+  "projectguessr.msg.no_world": "Cannot capture: no world loaded",
+  "projectguessr.msg.error": "Panorama capture failed: %s"
+}

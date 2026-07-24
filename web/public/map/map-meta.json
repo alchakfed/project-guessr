@@ -1,0 +1,12 @@
+{
+  "image": "map.png",
+  "imageWidth": 1024,
+  "imageHeight": 1024,
+  "worldMinX": -512,
+  "worldMinZ": -512,
+  "worldMaxX": 512,
+  "worldMaxZ": 512,
+  "blocksPerPixelX": 1,
+  "blocksPerPixelZ": 1,
+  "sourcePxPerBlock": 1
+}

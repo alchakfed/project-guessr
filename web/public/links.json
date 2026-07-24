@@ -1,0 +1,117 @@
+{
+  "generatedNote": "Navigation graph for ProjectGuessr movement arrows. Contains only relative bearings + distances between panoramas, never absolute world coordinates.",
+  "bearingConvention": "degrees clockwise from +Z toward +X (atan2(dx, dz))",
+  "radius": 8,
+  "links": {
+    "pano_000000": [
+      {
+        "to": "pano_000001",
+        "bearing": 184.6,
+        "dist": 5.26
+      }
+    ],
+    "pano_000001": [
+      {
+        "to": "pano_000002",
+        "bearing": 184.7,
+        "dist": 5.05
+      },
+      {
+        "to": "pano_000000",
+        "bearing": 4.6,
+        "dist": 5.26
+      }
+    ],
+    "pano_000002": [
+      {
+        "to": "pano_000001",
+        "bearing": 4.7,
+        "dist": 5.05
+      },
+      {
+        "to": "pano_000003",
+        "bearing": 184,
+        "dist": 5.05
+      }
+    ],
+    "pano_000003": [
+      {
+        "to": "pano_000002",
+        "bearing": 4,
+        "dist": 5.05
+      },
+      {
+        "to": "pano_000004",
+        "bearing": 183.1,
+        "dist": 5.06
+      }
+    ],
+    "pano_000004": [
+      {
+        "to": "pano_000005",
+        "bearing": 181.7,
+        "dist": 5.04
+      },
+      {
+        "to": "pano_000003",
+        "bearing": 3.1,
+        "dist": 5.06
+      }
+    ],
+    "pano_000005": [
+      {
+        "to": "pano_000004",
+        "bearing": 1.7,
+        "dist": 5.04
+      },
+      {
+        "to": "pano_000006",
+        "bearing": 181.8,
+        "dist": 5.05
+      }
+    ],
+    "pano_000006": [
+      {
+        "to": "pano_000005",
+        "bearing": 1.8,
+        "dist": 5.05
+      },
+      {
+        "to": "pano_000007",
+        "bearing": 181.7,
+        "dist": 5.05
+      }
+    ],
+    "pano_000007": [
+      {
+        "to": "pano_000006",
+        "bearing": 1.7,
+        "dist": 5.05
+      },
+      {
+        "to": "pano_000008",
+        "bearing": 181.7,
+        "dist": 5.05
+      }
+    ],
+    "pano_000008": [
+      {
+        "to": "pano_000007",
+        "bearing": 1.7,
+        "dist": 5.05
+      },
+      {
+        "to": "pano_000009",
+        "bearing": 181.7,
+        "dist": 5.05
+      }
+    ],
+    "pano_000009": [
+      {
+        "to": "pano_000008",
+        "bearing": 1.7,
+        "dist": 5.05
+      }
+    ]
+  }
+}

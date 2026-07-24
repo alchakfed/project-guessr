@@ -1,0 +1,14 @@
+{
+  "name": "projectguessr-web",
+  "version": "1.0.0",
+  "description": "GeoGuessr-style web game for Minecraft worlds: Pannellum 360 viewer + Leaflet guess map, multiplayer rooms (no accounts).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
