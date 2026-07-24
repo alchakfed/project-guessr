@@ -40,6 +40,7 @@ const state = {
   mapMeta: null,
   players: [],
   pano: null,        // Pannellum viewer instance
+  tourScenes: null,  // Set of scene ids registered on the current viewer
   map: null,         // Leaflet map (guess)
   guessMarker: null,
   guessLatLng: null, // current pending guess in Leaflet coords
@@ -246,7 +247,32 @@ function loadPanorama(folder, { freshView = false } = {}) {
     state.pano = null;
   }
   $('panorama').innerHTML = '';
+  state.tourScenes = new Set();
 
+  const opts = {
+    default: {
+      firstScene: folder,
+      sceneFadeDuration: 350, // crossfade between panoramas -> no black loader
+      autoLoad: true,
+      showControls: true,
+      hfov: view ? view.hfov : 100,
+    },
+    scenes: { [folder]: sceneConfig(folder) },
+  };
+  state.tourScenes.add(folder);
+  // Restore the previous view when roaming; use defaults on a fresh round.
+  if (view) {
+    opts.default.yaw = view.yaw;
+    opts.default.pitch = view.pitch;
+  }
+  state.pano = pannellum.viewer('panorama', opts);
+
+  onSceneShown(folder);
+}
+
+// Build the Pannellum scene config (cubemap + movement-arrow hotspots) for one
+// panorama. Clicking an arrow crossfades to that neighbour via moveTo().
+function sceneConfig(folder) {
   const yawOffset = CFG.PANO_YAW_OFFSET || 0;
   const hotSpots = neighboursFor(folder).map((n) => ({
     // Pannellum yaw: 0 = front face, positive clockwise. Our bearing is
@@ -256,39 +282,46 @@ function loadPanorama(folder, { freshView = false } = {}) {
     cssClass: 'pg-arrow',
     createTooltipFunc: makeArrow,
     createTooltipArgs: { to: n.to, dist: n.dist },
-    clickHandlerFunc: () => loadPanorama(n.to),
+    clickHandlerFunc: () => moveTo(n.to),
   }));
+  return { type: 'cubemap', cubeMap: panoUrls(folder), hotSpots };
+}
 
-  const opts = {
-    type: 'cubemap',
-    cubeMap: panoUrls(folder),
-    autoLoad: true,
-    showControls: true,
-    hfov: view ? view.hfov : 100,
-    hotSpots,
-  };
-  // Restore the previous view when roaming; use defaults on a fresh round.
-  if (view) {
-    opts.yaw = view.yaw;
-    opts.pitch = view.pitch;
-  }
-  state.pano = pannellum.viewer('panorama', opts);
+// Register a scene once so its arrows exist before we fade to it.
+function ensureScene(folder) {
+  if (!state.pano || state.tourScenes.has(folder)) return;
+  state.tourScenes.add(folder);
+  state.pano.addScene(folder, sceneConfig(folder));
+}
 
-  // Show a small "you've moved" hint when off the start panorama.
+// Walk to a neighbour: register the target scene, then crossfade to it keeping
+// the current look direction. The faces are already warm (preloadNeighbours),
+// so the fade lands on a decoded image instead of a spinner.
+function moveTo(folder) {
+  if (!state.pano) { loadPanorama(folder); return; }
+  ensureScene(folder);
+  state.currentFolder = folder;
+  // 'same' keeps the current pitch/yaw/hfov across the transition.
+  state.pano.loadScene(folder, 'same', 'same', 'same');
+  onSceneShown(folder);
+}
+
+// Shared per-scene housekeeping: hint when off the start panorama, and warm the
+// caches for wherever the player can go next.
+function onSceneShown(folder) {
   const moved = folder !== state.startFolder;
   $('roamHint').classList.toggle('hidden', !moved);
-
-  // Warm the browser cache with every neighbour's faces so roaming is instant.
   preloadNeighbours(folder);
 }
 
 // Prefetch the cubemap faces of every panorama the player can walk to from
-// `folder`. Uses Image() so the browser caches them; clicking an arrow then
-// loads from cache with no network wait. Cached across the round so we never
-// re-request a face we've already warmed.
+// `folder`. Uses Image() so the browser caches them; the crossfade to a
+// neighbour then lands on a decoded image with no network wait. Deduped per
+// round so we never re-request a face we've already warmed.
 const preloadedPanos = new Set();
 function preloadNeighbours(folder) {
   for (const n of neighboursFor(folder)) {
+    ensureScene(n.to); // register the scene too, so its arrows are ready
     if (preloadedPanos.has(n.to)) continue;
     preloadedPanos.add(n.to);
     for (const src of panoUrls(n.to)) {
@@ -387,7 +420,10 @@ function makeDynmapMap(elementId) {
     maxNativeZoom: DM.maxZoom,
     noWrap: true,
     errorTileUrl: BLANK_TILE,
-    keepBuffer: 4,
+    // Fetch a generous ring of off-screen tiles so panning reveals already-
+    // loaded map instead of black gaps. keepBuffer retains them when panning
+    // back. This is the main lever against the "black until you drag" problem.
+    keepBuffer: 8,
   }).addTo(map);
   map.setView(worldToLatLng(DM.center.x, DM.center.z), DM.initialZoom);
   return map;
@@ -415,8 +451,22 @@ function buildGuessMap() {
     $('guessBtn').disabled = false;
     $('guessBtn').textContent = `Guess (X ${Math.round(w.x)}, Z ${Math.round(w.z)})`;
   });
-  // Leaflet needs a size recalculation once its container is visible.
-  setTimeout(() => map.invalidateSize(), 50);
+  // Leaflet reads its container size on creation; if the game screen is still
+  // animating in, it sizes to a short strip and only that strip's tiles load
+  // (black elsewhere until you pan). Recalculate a few times as layout settles,
+  // and once more whenever the element resizes, so the full frame fills in.
+  recalcMapSize(map, 'map');
+}
+
+function recalcMapSize(map, elementId) {
+  const bump = () => { if (state.map === map || state.resultMap === map) map.invalidateSize(); };
+  for (const t of [0, 50, 200, 500]) setTimeout(bump, t);
+  if (window.ResizeObserver) {
+    const el = $(elementId);
+    const ro = new ResizeObserver(bump);
+    ro.observe(el);
+    map.on('unload', () => ro.disconnect());
+  }
 }
 
 function submitGuess() {
@@ -455,7 +505,7 @@ function showRoundResult(msg) {
     }).addTo(map).bindTooltip(r.name, { direction: 'top' });
     L.polyline([truthLL, gll], { color: mine ? '#55c157' : '#4a90d9', weight: 1, dashArray: '4' }).addTo(map);
   }
-  setTimeout(() => map.invalidateSize(), 50);
+  recalcMapSize(map, 'resultMiniMap');
 
   // Results table sorted by round score.
   const rows = msg.results.slice().sort((a, b) => b.score - a.score);
@@ -525,6 +575,6 @@ window.addEventListener('DOMContentLoaded', () => {
   $('nextBtn').onclick = () => sendWS({ t: 'next' });
   $('playAgainBtn').onclick = () => location.reload();
   $('backToStartBtn').onclick = () => {
-    if (state.startFolder) loadPanorama(state.startFolder);
+    if (state.startFolder) moveTo(state.startFolder);
   };
 });
