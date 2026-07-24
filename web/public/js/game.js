@@ -65,14 +65,23 @@ function showScreen(id) {
  *  We lay the map image on a CRS.Simple plane where Leaflet y grows downward.
  *  Image pixel (px, py) maps linearly to world (X, Z) using map-meta bounds.
  *  In Leaflet CRS.Simple we use latLng = [ -py, px ] so north (smaller Z) is up.
+ *
+ *  When CFG.DYNMAP.enabled, the guessing map is instead the live CCNet Dynmap
+ *  (see the Dynmap section below); the two helpers branch on that so every
+ *  caller (guess pin, result markers, scoring) works unchanged.
  * ------------------------------------------------------------------ */
+const DM = CFG.DYNMAP || {};
+function dynmapEnabled() { return !!DM.enabled; }
+
 function worldToLatLng(x, z) {
+  if (dynmapEnabled()) return L.latLng(z, x); // lng=X, lat=Z (see dynmapCRS)
   const m = state.mapMeta;
   const px = ((x - m.worldMinX) / (m.worldMaxX - m.worldMinX)) * m.imageWidth;
   const py = ((z - m.worldMinZ) / (m.worldMaxZ - m.worldMinZ)) * m.imageHeight;
   return L.latLng(-py, px);
 }
 function latLngToWorld(latlng) {
+  if (dynmapEnabled()) return { x: latlng.lng, z: latlng.lat };
   const m = state.mapMeta;
   const px = latlng.lng;
   const py = -latlng.lat;
@@ -281,6 +290,7 @@ function makeArrow(hotSpotDiv, args) {
 }
 
 function makeWorldMap(elementId) {
+  if (dynmapEnabled()) return makeDynmapMap(elementId);
   const m = state.mapMeta;
   const map = L.map(elementId, {
     crs: L.CRS.Simple,
@@ -293,6 +303,70 @@ function makeWorldMap(elementId) {
   const bounds = [[0, 0], [-m.imageHeight, m.imageWidth]];
   L.imageOverlay(CFG.MAP_IMAGE_URL || '/map/map.png', bounds).addTo(map);
   map.fitBounds(bounds);
+  return map;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Dynmap live-map layer (test)
+ *  ------------------------------------------------------------------
+ *  Serves the guessing map straight from the CCNet Dynmap tiles instead of
+ *  the bundled map.png. Leaflet's plane is defined so pixel = (scale*X,
+ *  -scale*Z), i.e. exactly Dynmap's `worldtomap`, and latLng carries raw
+ *  world coords (lat=Z, lng=X) so worldToLatLng/latLngToWorld are trivial.
+ *
+ *  Tile addressing (Dynmap HD flat map), verified against the live server:
+ *    n      = nativeZoom - leafletZoom      (# of 'z' zoom-out prefixes)
+ *    fx,fy  = tileX*2^n, tileY*2^n          (coords are in native-tile units)
+ *    folder = floor(fx/32)_floor(fy/32)
+ *    name   = ('z'*n)['_' if n>0] + fx_fy.ext
+ * ------------------------------------------------------------------ */
+function makeDynmapCRS() {
+  const s = DM.scale;         // blocks -> map pixels (4)
+  const N = DM.nativeZoom;    // leaflet zoom where a map pixel == a tile pixel
+  // Start from CRS.Simple (projection = LonLat: point(lng, lat)) and retune the
+  // transformation + zoom scaling so native zoom lands on Dynmap's pixel grid.
+  return L.extend({}, L.CRS.Simple, {
+    transformation: new L.Transformation(s, 0, -s, 0),
+    scale: (zoom) => Math.pow(2, zoom - N),
+    zoom: (scale) => Math.log(scale) / Math.LN2 + N,
+  });
+}
+
+const DynmapTileLayer = L.TileLayer.extend({
+  getTileUrl(coords) {
+    const n = DM.nativeZoom - coords.z;
+    const f = Math.pow(2, n);
+    const fx = coords.x * f;
+    const fy = coords.y * f;
+    const folder = `${Math.floor(fx / 32)}_${Math.floor(fy / 32)}`;
+    const pre = 'z'.repeat(n) + (n > 0 ? '_' : '');
+    return `${DM.baseUrl}/${DM.world}/${DM.prefix}/${folder}/${pre}${fx}_${fy}.${DM.ext}`;
+  },
+});
+
+// 1x1 transparent PNG — shown for empty/unrendered regions instead of a broken tile.
+const BLANK_TILE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+
+function makeDynmapMap(elementId) {
+  const map = L.map(elementId, {
+    crs: makeDynmapCRS(),
+    minZoom: DM.minZoom,
+    maxZoom: DM.maxZoom,
+    attributionControl: false,
+    zoomControl: true,
+  });
+  new DynmapTileLayer('', {
+    tileSize: DM.tileSize,
+    minZoom: DM.minZoom,
+    maxZoom: DM.maxZoom,
+    minNativeZoom: DM.minZoom,
+    maxNativeZoom: DM.maxZoom,
+    noWrap: true,
+    errorTileUrl: BLANK_TILE,
+    keepBuffer: 4,
+  }).addTo(map);
+  map.setView(worldToLatLng(DM.center.x, DM.center.z), DM.initialZoom);
   return map;
 }
 

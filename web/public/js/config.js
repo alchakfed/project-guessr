@@ -21,5 +21,27 @@ window.PG_CONFIG = {
   // Rotate all movement arrows by this many degrees if they don't line up with
   // the world (e.g. if the cubemap face order is rotated). No re-export needed.
   PANO_YAW_OFFSET: 180,
+
+  // --- Live server map (Dynmap) ------------------------------------------
+  // When enabled, the guessing map is the LIVE CCNet Dynmap instead of the
+  // static map.png. This only makes sense if the panoramas were captured on
+  // the same world (X/Z line up 1:1 with the nationsmap). Leave disabled to
+  // use the bundled map.png. See map.ccnetmc.com/nationsmap.
+  DYNMAP: {
+    enabled: true,
+    // Tile root (LiveAtlas/Dynmap): {baseUrl}/{world}/{prefix}/{folder}/{name}
+    baseUrl: 'https://map.ccnetmc.com/nationsmap/tiles',
+    world: 'world',
+    prefix: 'flat',
+    ext: 'webp',
+    tileSize: 128,          // Dynmap HD tile edge in pixels
+    scale: 4,               // worldtomap: mapX = scale*worldX, mapY = -scale*worldZ
+    nativeZoom: 6,          // Dynmap zoom-out 0 == this Leaflet zoom (tiles 1:1)
+    minZoom: 0,             // Leaflet zoom range that has rendered tiles (n = native - zoom)
+    maxZoom: 4,
+    // Initial camera, from a share URL like #world;flat;16,64,8;0  -> x=16,z=8
+    center: { x: 16, z: 8 },
+    initialZoom: 3,
+  },
 };
 
