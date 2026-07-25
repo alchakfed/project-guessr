@@ -142,14 +142,18 @@ export class Room {
     return null;
   }
 
-  // Mark a player disconnected but KEEP their slot (score, team, host status)
-  // for a grace window so they can reconnect. Returns true if the slot was
-  // preserved (caller should broadcast a lobby update showing them as offline),
-  // false if they were removed outright (no key -> no reconnect possible).
+  // Mark a player disconnected but KEEP their slot (score, team, host status,
+  // AND any guess they already locked in this round) for a grace window so they
+  // can reconnect. Returns true if the slot was preserved (caller should
+  // broadcast a lobby update showing them as offline), false if they were
+  // removed outright (no key -> no reconnect possible).
   disconnect(clientId) {
     const p = this.players.get(clientId);
     if (!p) return false;
-    this.guesses.delete(clientId);
+    // NOTE: we deliberately do NOT delete this.guesses[clientId]. A guess they
+    // locked in before dropping should still count (and be restored on
+    // reconnect). allGuessed() already skips disconnected players, so keeping
+    // the guess can't stall the round.
     p.ws = null;
     if (p.reconnectKey) {
       p.disconnectedAt = Date.now();
@@ -295,9 +299,18 @@ export class Room {
    *  Disconnected (grace-window) players are skipped so a drop can't stall the
    *  round waiting for someone who's gone. */
   allGuessed() {
-    let alive = 0;
-    for (const p of this.players.values()) if (p.ws && p.disconnectedAt == null) alive++;
-    return alive > 0 && this.guesses.size >= alive;
+    // Count only CONNECTED players, and only THEIR guesses — a disconnected
+    // player's preserved guess (kept for reconnect) must NOT count toward the
+    // alive total, or a drop could falsely trigger "everyone guessed" and reveal
+    // the round while connected players still have time to guess.
+    let alive = 0, aliveGuessed = 0;
+    for (const [cid, p] of this.players) {
+      if (p.ws && p.disconnectedAt == null) {
+        alive++;
+        if (this.guesses.has(cid)) aliveGuessed++;
+      }
+    }
+    return alive > 0 && aliveGuessed >= alive;
   }
 
   submitGuess(clientId, x, z) {
