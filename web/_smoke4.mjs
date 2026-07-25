@@ -26,7 +26,13 @@ try {
   await recv(guest);
 
   send(host, { t: 'start' });
-  const roundMsg = await recv(host); // round 1 to host
+  // Attach listener BEFORE relying on recv ordering.
+  const startMsgs = [];
+  const sh = (d) => startMsgs.push(JSON.parse(d.toString()));
+  host.on('message', sh);
+  await new Promise(r => setTimeout(r, 300));
+  host.off('message', sh);
+  const roundMsg = startMsgs.find(m => m.t === 'round');
   const origDeadline = roundMsg.deadline;
   console.log('original deadline:', origDeadline, 'now:', Date.now(),
     '->', Math.round((origDeadline - Date.now()) / 1000), 's left');
