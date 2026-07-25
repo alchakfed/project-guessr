@@ -532,6 +532,29 @@ function startRound(msg) {
   buildGuessMap();
   $('guessBtn').disabled = true;
   $('guessBtn').textContent = 'Place a pin to guess';
+
+  // Reconnect-only: if the server says we already guessed before dropping,
+  // restore that locked-in pin and mark ourselves guessed so we can't submit a
+  // second (server-rejected) guess that would desync our view from the others.
+  if (msg.myGuess) {
+    restoreGuess(msg.myGuess);
+  }
+}
+
+// Re-apply a guess we already locked in before a disconnect (reconnect path).
+function restoreGuess(g) {
+  if (!g || !state.map) return;
+  const ll = worldToLatLng(g.x, g.z);
+  state.guessLatLng = ll;
+  state.hasGuessed = true;
+  if (state.guessMarker) state.map.removeLayer(state.guessMarker);
+  state.guessMarker = L.circleMarker(ll, {
+    radius: 7, color: '#fff', weight: 2, fillColor: '#55c157', fillOpacity: 1,
+    className: 'guess-pin',
+  }).addTo(state.map);
+  $('guessBtn').disabled = true;
+  $('guessBtn').textContent = 'Locked in ✓';
+  $('guessStatus').textContent = 'Locked in (restored after reconnect)';
 }
 
 /* ------------------------------------------------------------------ *
@@ -681,6 +704,22 @@ function loadPanorama(folder, { freshView = false } = {}) {
   state.pano = pannellum.viewer('panorama', opts);
 
   onSceneShown(folder);
+
+  // Render cold-start / reconnect fix: if the #game screen was just switched
+  // to (e.g. on reconnect), the #panorama container may still have zero size
+  // when the viewer is created, which makes Pannellum render a black sphere.
+  // If so, wait one frame for the layout to settle and force a resize so the
+  // viewer picks up the real dimensions.
+  const cont = $('panorama');
+  if (cont && (cont.clientWidth === 0 || cont.clientHeight === 0)) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (state.pano && state.currentFolder === folder) {
+          try { state.pano.resize(); } catch (_) {}
+        }
+      });
+    });
+  }
 }
 
 // Effective on-screen yaw of a neighbour's arrow, in Pannellum's convention

@@ -229,7 +229,7 @@ function sendRound(room) {
     allowMove: room.allowMove,
     mode: room.mode,
     teams: room.teamsSnapshot(),
-    deadline: room.roundTime ? Date.now() + room.roundTime * 1000 : null,
+    deadline: room.roundDeadline(),
   };
   for (const [, p] of room.players) if (p.ws) send(p.ws, payload);
 }
@@ -239,6 +239,11 @@ function sendRoundTo(room, clientId) {
   const r = room.currentRound();
   const p = room.players.get(clientId);
   if (!r || !p || !p.ws) return;
+  // If this player already guessed before dropping, tell the client so it
+  // doesn't let them guess AGAIN (the server would reject the duplicate, but
+  // the client would show a stale "locked in" pin that disagrees with the
+  // server's recorded guess — a visible desync from the other players).
+  const myGuess = room.guesses.get(clientId) || null;
   send(p.ws, {
     t: 'round',
     index: room.roundIndex,
@@ -249,7 +254,8 @@ function sendRoundTo(room, clientId) {
     allowMove: room.allowMove,
     mode: room.mode,
     teams: room.teamsSnapshot(),
-    deadline: room.roundTime ? Date.now() + room.roundTime * 1000 : null,
+    deadline: room.roundDeadline(),
+    myGuess,            // reconnect-only: restore the already-locked guess
   });
 }
 

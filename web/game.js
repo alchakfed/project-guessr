@@ -95,6 +95,7 @@ export class Room {
     this.hpByTeam = new Map();   // teamKey -> current HP (duel modes only)
     this.winner = null;          // set when a duel ends (label string)
     this.endReason = null;       // 'death' | 'rounds' | null
+    this.roundStartedAt = null;  // epoch ms the current round began (for deadline math)
   }
 
   isDuel() { return this.mode === 'duel' || this.mode === 'teamduel'; }
@@ -272,11 +273,22 @@ export class Room {
       if (this.isDuel() && !this.endReason) this.finishByRounds();
     } else {
       this.state = 'playing';
+      this.roundStartedAt = Date.now();
     }
   }
 
   currentRound() {
     return this.rounds[this.roundIndex] || null;
+  }
+
+  // Absolute epoch-ms deadline for the current round, or null if no time limit.
+  // Computed from the round's START time so it's identical for every player —
+  // including a reconnecting player who rejoins partway through (they get the
+  // REMAINING time, not a fresh full timer). Used by both the broadcast round
+  // message and the single-player reconnect replay.
+  roundDeadline() {
+    if (!this.roundTime || this.roundStartedAt == null) return null;
+    return this.roundStartedAt + this.roundTime * 1000;
   }
 
   /** True once every CONNECTED player has submitted a guess this round.
