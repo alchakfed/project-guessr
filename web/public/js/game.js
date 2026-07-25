@@ -567,7 +567,7 @@ function loadPanorama(folder, { freshView = false } = {}) {
       firstScene: folder,
       sceneFadeDuration: 350, // crossfade between panoramas -> no black loader
       autoLoad: true,
-      showControls: true,
+      showControls: false, // hide Pannellum's fullscreen/zoom widgets
       hfov: view ? view.hfov : 150,
       maxHfov: 150,
     },
@@ -779,7 +779,7 @@ function makeWorldMap(elementId) {
     minZoom: -4,
     maxZoom: 2,
     attributionControl: false,
-    zoomControl: true,
+    zoomControl: false,
   });
   // Image bounds in CRS.Simple coords: y is negated so north is up.
   const bounds = [[0, 0], [-m.imageHeight, m.imageWidth]];
@@ -838,7 +838,7 @@ function makeDynmapMap(elementId) {
     minZoom: DM.minZoom,
     maxZoom: DM.maxZoom,
     attributionControl: false,
-    zoomControl: true,
+    zoomControl: false,
   });
   new DynmapTileLayer('', {
     tileSize: DM.tileSize,
