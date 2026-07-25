@@ -157,7 +157,7 @@ function handle(msg) {
       $('roomCode').textContent = msg.code;
       showScreen('room');
       break;
-    case 'lobby':
+    case 'lobby': {
       state.players = msg.players;
       state.isHost = msg.hostId === state.clientId;
       state.mode = msg.mode || 'classic';
@@ -168,6 +168,7 @@ function handle(msg) {
       $('startBtn').classList.toggle('hidden', !state.isHost);
       $('waitMsg').classList.toggle('hidden', state.isHost);
       break;
+    }
     case 'round':
       startRound(msg);
       break;
