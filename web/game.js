@@ -120,12 +120,73 @@ export class Room {
     return '';
   }
 
-  addPlayer(clientId, name, ws) {
+  addPlayer(clientId, name, ws, reconnectKey = null) {
     if (!this.hostId) this.hostId = clientId;
     // Team-duel joiners land on the smaller side so teams stay balanced.
     let team = null;
     if (this.mode === 'teamduel') team = this.smallerTeam();
-    this.players.set(clientId, { name, ws, totalScore: 0, team });
+    this.players.set(clientId, {
+      name, ws, totalScore: 0, team,
+      reconnectKey, disconnectedAt: null,
+    });
+  }
+
+  // Find an existing slot by reconnect key (e.g. a player who dropped and is
+  // coming back). Returns the clientId or null.
+  findSlotByKey(reconnectKey) {
+    if (!reconnectKey) return null;
+    for (const [cid, p] of this.players) {
+      if (p.reconnectKey === reconnectKey) return cid;
+    }
+    return null;
+  }
+
+  // Mark a player disconnected but KEEP their slot (score, team, host status)
+  // for a grace window so they can reconnect. Returns true if the slot was
+  // preserved (caller should broadcast a lobby update showing them as offline),
+  // false if they were removed outright (no key -> no reconnect possible).
+  disconnect(clientId) {
+    const p = this.players.get(clientId);
+    if (!p) return false;
+    this.guesses.delete(clientId);
+    p.ws = null;
+    if (p.reconnectKey) {
+      p.disconnectedAt = Date.now();
+      return true; // preserved for grace window
+    }
+    // No reconnect key: drop them for real (legacy behaviour).
+    this.players.delete(clientId);
+    if (clientId === this.hostId) {
+      this.hostId = this.players.keys().next().value || null;
+    }
+    return false;
+  }
+
+  // Revive a preserved slot on a new ws. Restores the same clientId so score,
+  // team, and host status carry over. Returns the clientId, or null if the
+  // slot is gone (expired / not found).
+  reconnect(clientId, ws) {
+    const p = this.players.get(clientId);
+    if (!p || !p.reconnectKey || p.disconnectedAt == null) return false;
+    p.ws = ws;
+    p.disconnectedAt = null;
+    return true;
+  }
+
+  // Expire any disconnected slots past the grace window. Call periodically.
+  static GRACE_MS = 5 * 60_000;
+  sweep(now = Date.now()) {
+    const expired = [];
+    for (const [cid, p] of this.players) {
+      if (p.disconnectedAt != null && now - p.disconnectedAt > Room.GRACE_MS) {
+        expired.push(cid);
+      }
+    }
+    for (const cid of expired) {
+      this.players.delete(cid);
+      if (cid === this.hostId) this.hostId = this.players.keys().next().value || null;
+    }
+    return expired;
   }
 
   // Which of the two teams (0/1) currently has fewer members (ties -> 0).
@@ -218,9 +279,13 @@ export class Room {
     return this.rounds[this.roundIndex] || null;
   }
 
-  /** True once every connected player has submitted a guess this round. */
+  /** True once every CONNECTED player has submitted a guess this round.
+   *  Disconnected (grace-window) players are skipped so a drop can't stall the
+   *  round waiting for someone who's gone. */
   allGuessed() {
-    return this.players.size > 0 && this.guesses.size >= this.players.size;
+    let alive = 0;
+    for (const p of this.players.values()) if (p.ws && p.disconnectedAt == null) alive++;
+    return alive > 0 && this.guesses.size >= alive;
   }
 
   submitGuess(clientId, x, z) {

@@ -159,6 +159,9 @@ function handle(msg) {
       state.code = msg.code;
       state.isHost = msg.isHost;
       state.mapMeta = msg.mapMeta;
+      // Persist the reconnect key + code so an accidental close/refresh can
+      // rejoin this exact slot (score/team/host preserved server-side).
+      if (msg.reconnectKey) saveReconnect(msg.code, msg.reconnectKey);
       $('roomCode').textContent = msg.code;
       showScreen('room');
       break;
@@ -204,6 +207,7 @@ function handle(msg) {
       break;
     case 'kicked':
       state.kicked = true;
+      clearReconnect(); // kicked = no rejoining this room
       $('lobbyError').textContent = 'You were removed from the room by the host.';
       showScreen('lobby');
       break;
@@ -344,6 +348,45 @@ function loadSettings() {
 }
 function saveSettings() {
   try { localStorage.setItem('pg_settings', JSON.stringify(state.settings)); } catch (_) {}
+}
+
+/* ------------------------------------------------------------------ *
+ *  Reconnect: remember the room code + key so an accidental close or
+ *  refresh can rejoin the same slot (score/team/host preserved).
+ * ------------------------------------------------------------------ */
+function saveReconnect(code, key) {
+  try { localStorage.setItem('pg_reconnect', JSON.stringify({ code, key, ts: Date.now() })); } catch (_) {}
+  showReconnectButton();
+}
+function loadReconnect() {
+  try {
+    const r = JSON.parse(localStorage.getItem('pg_reconnect') || 'null');
+    if (!r || !r.code || !r.key) return null;
+    // Expire after the server's grace window (5 min) + a little slack.
+    if (Date.now() - (r.ts || 0) > 6 * 60_000) { clearReconnect(); return null; }
+    return r;
+  } catch (_) { return null; }
+}
+function clearReconnect() {
+  try { localStorage.removeItem('pg_reconnect'); } catch (_) {}
+  hideReconnectButton();
+}
+function showReconnectButton() {
+  const r = loadReconnect();
+  if (!r) return;
+  const btn = $('reconnectBtn');
+  if (!btn) return;
+  btn.textContent = `Reconnect to ${r.code}`;
+  btn.classList.remove('hidden');
+}
+function hideReconnectButton() {
+  const btn = $('reconnectBtn');
+  if (btn) btn.classList.add('hidden');
+}
+function doReconnect() {
+  const r = loadReconnect();
+  if (!r) return;
+  sendWS({ t: 'reconnect', code: r.code, reconnectKey: r.key });
 }
 
 // Whether the team chat UI should be available at all (teamduel only, and not
@@ -1043,6 +1086,7 @@ function showRoundResult(msg) {
   // not in a separate window). Replace Next round with a Back-to-lobby action.
   const ko = $('knockoutBanner');
   if (msg.finished && msg.winner) {
+    clearReconnect(); // game ended (sudden death) — don't offer to rejoin
     ko.textContent = msg.reason === 'death'
       ? `${msg.winner} wins by knockout!`
       : `${msg.winner} wins!`;
@@ -1065,6 +1109,7 @@ function showRoundResult(msg) {
 
 function showFinal(msg) {
   stopRoundTimer();
+  clearReconnect(); // game is over — no point rejoining a finished room
   const board = Array.isArray(msg) ? msg : msg.board;
   const winner = msg && msg.winner;
   const reason = msg && msg.reason;
@@ -1173,6 +1218,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!code) { $('lobbyError').textContent = 'Enter a room code.'; return; }
     sendWS({ t: 'join', code, name });
   };
+
+  // Reconnect to a remembered room (slot/score/team preserved server-side).
+  $('reconnectBtn').onclick = doReconnect;
+  showReconnectButton(); // in case we land on the lobby with a saved session
 
   // --- Room options panel: host edits broadcast via setoptions (debounced) ---
   let optTimer = null;

@@ -25,11 +25,20 @@ import { WebSocketServer } from 'ws';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomBytes } from 'node:crypto';
 import { loadManifest, Room, makeRoomCode } from './game.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// Unguessable per-player key that grants re-entry to a live room after a drop.
+// Returned to the client in 'joined' so it can persist the key + room code and
+// reconnect later. Keep it long: it's the only thing standing between a random
+// observer and rejoining someone's in-progress game.
+function makeReconnectKey() {
+  return randomBytes(18).toString('base64url');
+}
 
 // --- Load game data (fail fast with a helpful message) --------------------
 let manifest, mapMeta;
@@ -137,7 +146,7 @@ const rooms = new Map();       // code -> Room
 let clientSeq = 0;
 
 function send(ws, obj) {
-  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj));
+  if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj));
 }
 
 function broadcast(room, obj) {
@@ -147,6 +156,7 @@ function broadcast(room, obj) {
 function playerList(room) {
   return [...room.players.entries()].map(([clientId, p]) => ({
     clientId, name: p.name, isHost: clientId === room.hostId, team: p.team ?? null,
+    disconnected: p.disconnectedAt != null,
   }));
 }
 
@@ -209,7 +219,27 @@ function sendRound(room) {
   if (!r) return;
   armRoundTimer(room);
   // Deliberately omit x/z — the client must not know the answer.
-  broadcast(room, {
+  const payload = {
+    t: 'round',
+    index: room.roundIndex,
+    total: room.rounds.length,
+    id: r.id,
+    folder: r.folder || r.id,
+    roundTime: room.roundTime,
+    allowMove: room.allowMove,
+    mode: room.mode,
+    teams: room.teamsSnapshot(),
+    deadline: room.roundTime ? Date.now() + room.roundTime * 1000 : null,
+  };
+  for (const [, p] of room.players) if (p.ws) send(p.ws, payload);
+}
+
+// Send the current round to a single (reconnecting) player.
+function sendRoundTo(room, clientId) {
+  const r = room.currentRound();
+  const p = room.players.get(clientId);
+  if (!r || !p || !p.ws) return;
+  send(p.ws, {
     t: 'round',
     index: room.roundIndex,
     total: room.rounds.length,
@@ -221,6 +251,14 @@ function sendRound(room) {
     teams: room.teamsSnapshot(),
     deadline: room.roundTime ? Date.now() + room.roundTime * 1000 : null,
   });
+}
+
+// Reconstruct the most recent roundresult for a reconnecting player who lands
+// during the 'roundover' phase (so they see the result overlay, not a blank
+// game screen). Cached on revealRound; we just replay it.
+let lastRoundResultCache = new WeakMap(); // room -> payload
+function lastRoundResult(room) {
+  return lastRoundResultCache.get(room) || null;
 }
 
 wss.on('connection', (ws) => {
@@ -238,7 +276,10 @@ wss.on('connection', (ws) => {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
     const wasPublic = room.isPublic;
-    room.removePlayer(ws.clientId);
+    // Grace-window disconnect: keep the slot (score/team/host) for a few
+    // minutes so the player can reconnect. If they have no reconnect key (old
+    // client) or the slot can't be preserved, they're removed immediately.
+    const preserved = room.disconnect(ws.clientId);
     if (room.isEmpty()) {
       clearRoundTimer(room);
       rooms.delete(room.code);
@@ -246,6 +287,9 @@ wss.on('connection', (ws) => {
     } else {
       broadcast(room, lobbyMsg(room));
       if (wasPublic) pushBrowseList();
+      // If a round was waiting on the dropped player and now everyone remaining
+      // has guessed, reveal it so the round doesn't stall.
+      if (preserved && room.state === 'playing' && room.allGuessed()) revealRound(room);
     }
   });
 });
@@ -269,6 +313,15 @@ function handle(ws, msg) {
       if (!room) { send(ws, { t: 'error', message: 'Room not found' }); return; }
       if (room.state !== 'lobby') { send(ws, { t: 'error', message: 'Game already started' }); return; }
       joinRoom(ws, room, msg.name);
+      break;
+    }
+    // Reconnect a dropped player to their preserved slot using the reconnect
+    // key they got when they first joined. Works mid-game (the 'Game already
+    // started' guard above doesn't apply here — that's the whole point).
+    case 'reconnect': {
+      const room = rooms.get((msg.code || '').toUpperCase());
+      if (!room) { send(ws, { t: 'error', message: 'Room not found' }); return; }
+      reconnectRoom(ws, room, msg.reconnectKey);
       break;
     }
     // Lobby browser: this socket wants the public-rooms list (sent immediately
@@ -383,7 +436,8 @@ function handle(ws, msg) {
 
 function joinRoom(ws, room, name) {
   const clean = (name || 'Player').toString().slice(0, 24);
-  room.addPlayer(ws.clientId, clean, ws);
+  const reconnectKey = makeReconnectKey();
+  room.addPlayer(ws.clientId, clean, ws, reconnectKey);
   ws.roomCode = room.code;
   send(ws, {
     t: 'joined',
@@ -391,20 +445,50 @@ function joinRoom(ws, room, name) {
     clientId: ws.clientId,
     isHost: ws.clientId === room.hostId,
     mapMeta,
+    reconnectKey,
   });
   broadcast(room, lobbyMsg(room));
   if (room.isPublic) pushBrowseList();
+}
+
+// Reattach a returning player to their preserved slot. Restores the same
+// clientId (so score/team/host carry over) and resends enough state for them
+// to keep playing: lobby if still in lobby, or the current round if mid-game.
+function reconnectRoom(ws, room, reconnectKey) {
+  const slotId = room.findSlotByKey(reconnectKey);
+  if (!slotId) { send(ws, { t: 'error', message: 'Reconnect failed: session expired or not found.' }); return; }
+  // The old clientId is reused; drop the throwaway id this connection got.
+  room.reconnect(slotId, ws);
+  // Re-key the ws so future messages carry the revived clientId.
+  ws.clientId = slotId;
+  ws.roomCode = room.code;
+  const me = room.players.get(slotId);
+  send(ws, {
+    t: 'joined',
+    code: room.code,
+    clientId: slotId,
+    isHost: slotId === room.hostId,
+    mapMeta,
+    reconnectKey,
+    reconnected: true,
+  });
+  broadcast(room, lobbyMsg(room));
+  // If a round is in progress, resend the round so they can keep guessing.
+  if (room.state === 'playing') sendRoundTo(room, slotId);
+  else if (room.state === 'roundover') send(ws, lastRoundResult(room));
 }
 
 function revealRound(room) {
   clearRoundTimer(room);
   const { truth, results, teams, damage } = room.scoreRound();
   const finished = room.state === 'finished'; // sudden death ended the game
-  broadcast(room, {
+  const payload = {
     t: 'roundresult', truth, results, teams, damage,
     mode: room.mode, index: room.roundIndex, total: room.rounds.length,
     finished, winner: room.winner, reason: room.endReason,
-  });
+  };
+  lastRoundResultCache.set(room, payload); // replayed to mid-roundover reconnects
+  broadcast(room, payload);
   broadcast(room, { t: 'scoreboard', board: room.scoreboard() });
   // For sudden-death finishes, the roundresult already carries the winner so the
   // client renders the knockout banner on the result map. We still broadcast a
@@ -417,6 +501,22 @@ function revealRound(room) {
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Periodically expire grace-window slots and clean up empty rooms.
+setInterval(() => {
+  for (const room of rooms.values()) {
+    const expired = room.sweep();
+    if (expired.length) {
+      broadcast(room, lobbyMsg(room));
+      if (room.isPublic) pushBrowseList();
+    }
+    if (room.isEmpty()) {
+      clearRoundTimer(room);
+      rooms.delete(room.code);
+      if (room.isPublic) pushBrowseList();
+    }
+  }
+}, 60_000);
 
 server.listen(PORT, () => {
   console.log(`\n[server] ProjectGuessr running:`);
