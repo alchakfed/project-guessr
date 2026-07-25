@@ -216,8 +216,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
   transform: rotate(-90deg) scale(1.12);
 }
 
-/* "You've moved" hint + inline link button in the HUD */
-#roamHint { font-size: 13px; color: var(--muted); margin-top: 4px; pointer-events: auto; }
+/* Inline link button (legacy helper) */
 .link-btn {
   display: inline;
   width: auto;

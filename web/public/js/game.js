@@ -661,11 +661,10 @@ function moveTo(folder) {
   onSceneShown(folder);
 }
 
-// Shared per-scene housekeeping: hint when off the start panorama, and warm the
-// caches for wherever the player can go next.
+// Shared per-scene housekeeping: show the return-to-start button when the
+// player has roamed off the start panorama, and warm caches for next moves.
 function onSceneShown(folder) {
   const moved = folder !== state.startFolder;
-  $('roamHint').classList.toggle('hidden', !moved);
   $('backToStartBtn').classList.toggle('hidden', !moved);
   preloadNeighbours(folder);
 }
@@ -732,7 +731,10 @@ function startCompassLoop() {
       rose.style.transform = `rotate(${-yaw}deg)`;
       if (compass) compass.classList.add('relative');
     } else {
-      rose.style.transform = `rotate(${north - yaw}deg)`;
+      // +180: the link bearings are stored as the reciprocal of the arrow's
+      // screen direction, so the derived "north" lands where south is. Flip the
+      // rose half a turn so the needle actually points north.
+      rose.style.transform = `rotate(${north - yaw + 180}deg)`;
       if (compass) compass.classList.remove('relative');
     }
   };
