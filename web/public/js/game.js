@@ -79,14 +79,19 @@ function worldToLatLng(x, z) {
   // (fy = -coords.y) so the terrain renders north-up. The marker path never
   // sees that inversion, so lat must be -Z (not +Z) to land on the SAME
   // hemisphere as the tiles: +Z is south (down), matching Minecraft.
-  if (dynmapEnabled()) return L.latLng(-z, x); // lng=X, lat=-Z (see dynmapCRS)
+  //
+  // markerOffsetX/Z nudge the whole world<->screen mapping to line the latLng
+  // grid up with the terrain tiles (see config). Applied here and inverted in
+  // latLngToWorld so the pair stays a clean round-trip: scoring is unaffected,
+  // pins and clicks just register on the right pixel.
+  if (dynmapEnabled()) return L.latLng(-(z + (DM.markerOffsetZ || 0)), x + (DM.markerOffsetX || 0));
   const m = state.mapMeta;
   const px = ((x - m.worldMinX) / (m.worldMaxX - m.worldMinX)) * m.imageWidth;
   const py = ((z - m.worldMinZ) / (m.worldMaxZ - m.worldMinZ)) * m.imageHeight;
   return L.latLng(-py, px);
 }
 function latLngToWorld(latlng) {
-  if (dynmapEnabled()) return { x: latlng.lng, z: -latlng.lat }; // inverse of above
+  if (dynmapEnabled()) return { x: latlng.lng - (DM.markerOffsetX || 0), z: -latlng.lat - (DM.markerOffsetZ || 0) }; // inverse of above
   const m = state.mapMeta;
   const px = latlng.lng;
   const py = -latlng.lat;
@@ -275,17 +280,30 @@ function loadPanorama(folder, { freshView = false } = {}) {
   onSceneShown(folder);
 }
 
+// Effective on-screen yaw of a neighbour's arrow, in Pannellum's convention
+// (0 = straight ahead of the panorama's front face, positive = to the right).
+// Shared by the visual hotspots and the keyboard handler so a key press lands
+// on the SAME neighbour the matching arrow points at.
+function arrowYawFor(n) {
+  const yawOffset = (CFG.PANO_YAW_OFFSET || 0);
+  const yawSign = CFG.PANO_YAW_SIGN === -1 ? -1 : 1;
+  const base = (n.arrowYaw != null ? n.arrowYaw : -n.bearing);
+  // (+540 % 360 -180) wrap is negative-safe -> result in [-180, 180).
+  return (((yawSign * base + yawOffset) % 360) + 540) % 360 - 180;
+}
+
 // Build the Pannellum scene config (cubemap + movement-arrow hotspots) for one
 // panorama. Clicking an arrow crossfades to that neighbour via moveTo().
 function sceneConfig(folder) {
-  const yawOffset = CFG.PANO_YAW_OFFSET || 0;
   const hotSpots = neighboursFor(folder).map((n) => ({
-    // Our bearing is degrees CLOCKWISE from +Z (atan2(dx, dz)); Pannellum yaw
-    // runs the opposite way, so the bearing must be NEGATED, not just rotated.
-    // Without the sign flip, left/right arrows land on the wrong side (you
-    // click "left" and move right). PANO_YAW_OFFSET only rotates and can never
-    // fix that mirror. The (+540 % 360 -180) wrap is negative-safe.
-    yaw: (((-n.bearing + yawOffset) % 360) + 540) % 360 - 180,
+    // build-links.js precomputes arrowYaw = -(bearing + captureYaw): the
+    // neighbour's direction RELATIVE to this panorama's own front face, which is
+    // whichever way the player looked when the shot was taken. That per-panorama
+    // heading is why a single global offset never worked before. With arrowYaw
+    // baked in, PANO_YAW_OFFSET is just a global fix for face-order rotation and
+    // PANO_YAW_SIGN a global mirror fix. Fall back to the old bearing-only math
+    // for links.json files generated before arrowYaw existed.
+    yaw: arrowYawFor(n),
     pitch: -12,
     cssClass: 'pg-arrow',
     createTooltipFunc: makeArrow,
@@ -293,6 +311,31 @@ function sceneConfig(folder) {
     clickHandlerFunc: () => moveTo(n.to),
   }));
   return { type: 'cubemap', cubeMap: panoUrls(folder), hotSpots };
+}
+
+// Roam by keyboard: pick the neighbour whose arrow is closest to the requested
+// direction RELATIVE TO THE CURRENT VIEW (up = ahead of where you're looking,
+// right = to your right, etc.), and walk there — same as clicking that arrow.
+// Returns true if it moved, so the caller can swallow the key event.
+function roamRelative(screenDeg) {
+  if (!state.pano) return false;
+  const neighbours = neighboursFor(state.currentFolder);
+  if (!neighbours.length) return false;
+  const viewYaw = state.pano.getYaw();
+  let best = null, bestDiff = Infinity;
+  for (const n of neighbours) {
+    // Where this neighbour's arrow sits relative to the view centre.
+    let rel = arrowYawFor(n) - viewYaw;
+    rel = ((rel % 360) + 540) % 360 - 180;
+    let diff = Math.abs(rel - screenDeg);
+    diff = Math.min(diff, 360 - diff); // shortest way round the circle
+    if (diff < bestDiff) { bestDiff = diff; best = n; }
+  }
+  // Only accept a neighbour that's reasonably in the pressed direction (within
+  // ~70° of it), so pressing Left with nothing to the left does nothing rather
+  // than teleporting you to the only arrow available.
+  if (best && bestDiff <= 70) { moveTo(best.to); return true; }
+  return false;
 }
 
 // Register a scene once so its arrows exist before we fade to it.
@@ -425,13 +468,14 @@ function makeDynmapMap(elementId) {
     minZoom: DM.minZoom,
     maxZoom: DM.maxZoom,
     minNativeZoom: DM.minZoom,
-    maxNativeZoom: DM.maxZoom,
+    maxNativeZoom: DM.maxNativeZoom || DM.nativeZoom,
     noWrap: true,
     errorTileUrl: BLANK_TILE,
-    // Fetch a generous ring of off-screen tiles so panning reveals already-
-    // loaded map instead of black gaps. keepBuffer retains them when panning
-    // back. This is the main lever against the "black until you drag" problem.
-    keepBuffer: 8,
+    // Keep a modest off-screen ring so panning back doesn't flash black, but no
+    // more: every buffered tile is a real upstream request. keepBuffer:8 (4x the
+    // default) quadrupled our load on the third-party Dynmap. The server-side
+    // tile proxy now absorbs pan/zoom bursts, so 2 is plenty here.
+    keepBuffer: 2,
   }).addTo(map);
   map.setView(worldToLatLng(DM.center.x, DM.center.z), DM.initialZoom);
   return map;
@@ -594,4 +638,21 @@ window.addEventListener('DOMContentLoaded', () => {
   $('backToStartBtn').onclick = () => {
     if (state.startFolder) moveTo(state.startFolder);
   };
+
+  // Arrow-key roaming (Street-View style). Direction is relative to where you're
+  // currently looking: Up = walk toward what's ahead, Left/Right/Down likewise.
+  // Capture phase + stopPropagation so Pannellum doesn't also pan the view on
+  // the same key. Ignored while typing in a field or when the map has focus.
+  const KEY_DEG = { ArrowUp: 0, ArrowRight: 90, ArrowDown: 180, ArrowLeft: -90 };
+  window.addEventListener('keydown', (e) => {
+    if (!(e.target === document.body || $('panorama').contains(e.target))) {
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+    }
+    if (!CFG.ENABLE_MOVEMENT) return;
+    if (!$('game').classList.contains('active')) return;
+    const deg = KEY_DEG[e.key];
+    if (deg === undefined) return;
+    if (roamRelative(deg)) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
 });

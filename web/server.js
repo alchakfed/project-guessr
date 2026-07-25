@@ -54,6 +54,80 @@ const app = express();
 // before the static middleware can serve it. links.json is safe (relative
 // bearings only) and stays public for the movement arrows.
 app.get('/manifest.json', (_req, res) => res.status(404).end());
+
+// --- Dynmap tile proxy + cache --------------------------------------------
+// The guess map streams tiles from a THIRD-PARTY live Dynmap (map.ccnetmc.com).
+// Hotlinking it directly means every player, every pan, and every zoom hits
+// their server anew — thousands of requests to a server we don't own, and a
+// reliable way to get rate-limited/blocked (which shows up as black tiles).
+// Proxy tiles through here with a short-lived cache + request coalescing so
+// each unique tile is fetched upstream at most once per TTL no matter how many
+// players are looking, and send a real User-Agent they can identify us by.
+// To take ZERO third-party load, set DYNMAP.enabled=false in config.js (the game
+// falls back to the bundled map.png) — this proxy is only used when it's on.
+const DYNMAP_UPSTREAM = process.env.DYNMAP_UPSTREAM || 'https://map.ccnetmc.com/nationsmap/tiles';
+const TILE_TTL_MS = 60_000;     // live map; 60s dedups request bursts without going stale
+const TILE_CACHE_MAX = 3000;    // a few MB of webp tiles; oldest evicted past this
+const tileCache = new Map();    // relPath -> { buf, type, ts }   (Map = insertion-ordered LRU)
+const tileInflight = new Map(); // relPath -> Promise  (coalesce concurrent identical fetches)
+
+// 1x1 transparent PNG for empty/ungenerated regions and upstream misses.
+const BLANK_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64');
+
+function tileCacheGet(key) {
+  const hit = tileCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > TILE_TTL_MS) { tileCache.delete(key); return null; }
+  tileCache.delete(key); tileCache.set(key, hit); // refresh LRU recency
+  return hit;
+}
+function tileCacheSet(key, val) {
+  tileCache.set(key, val);
+  while (tileCache.size > TILE_CACHE_MAX) tileCache.delete(tileCache.keys().next().value);
+}
+
+async function fetchTile(relPath) {
+  const cached = tileCacheGet(relPath);
+  if (cached) return cached;
+  if (tileInflight.has(relPath)) return tileInflight.get(relPath);
+  const p = (async () => {
+    const r = await fetch(`${DYNMAP_UPSTREAM}/${relPath}`, {
+      headers: {
+        'User-Agent': 'ProjectGuessr/1.0 (hobby Minecraft GeoGuessr; caching tile proxy)',
+        'Referer': 'https://map.ccnetmc.com/nationsmap',
+        'Accept': 'image/webp,image/png,*/*',
+      },
+    });
+    if (!r.ok) throw new Error('upstream ' + r.status);
+    const type = r.headers.get('content-type') || 'image/webp';
+    const val = { buf: Buffer.from(await r.arrayBuffer()), type, ts: Date.now() };
+    tileCacheSet(relPath, val);
+    return val;
+  })().finally(() => tileInflight.delete(relPath));
+  tileInflight.set(relPath, p);
+  return p;
+}
+
+app.get('/dyntiles/*', async (req, res) => {
+  const rel = req.params[0];
+  // Only ever proxy the exact Dynmap tile shape; never let a path escape upstream.
+  if (rel.includes('..') || !/^[\w/-]+\.(webp|png|jpg|jpeg)$/i.test(rel)) return res.status(400).end();
+  try {
+    const { buf, type } = await fetchTile(rel);
+    res.set('Content-Type', type);
+    res.set('Cache-Control', 'public, max-age=60');
+    res.send(buf);
+  } catch {
+    // Ungenerated region or upstream hiccup: serve a blank tile so the client
+    // shows empty space (not a broken image) and doesn't retry-storm upstream.
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=30');
+    res.send(BLANK_PNG);
+  }
+});
+
 app.use(express.static(PUBLIC_DIR));
 const server = http.createServer(app);
 

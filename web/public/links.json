@@ -1,12 +1,14 @@
 {
   "generatedNote": "Navigation graph for ProjectGuessr movement arrows. Contains only relative bearings + distances between panoramas, never absolute world coordinates.",
   "bearingConvention": "degrees clockwise from +Z toward +X (atan2(dx, dz))",
-  "radius": 16,
+  "arrowYawConvention": "Pannellum yaw for the movement arrow, measured from THIS panorama's front face (the heading it was captured at): arrowYaw = -(bearing + captureYaw). Relative to the view only — leaks no absolute coord or heading.",
+  "radius": 14,
   "links": {
     "pano_000074": [
       {
         "to": "pano_000075",
         "bearing": 87.9,
+        "arrowYaw": 4.6,
         "dist": 10
       }
     ],
@@ -14,11 +16,13 @@
       {
         "to": "pano_000074",
         "bearing": 267.9,
+        "arrowYaw": 177.2,
         "dist": 10
       },
       {
         "to": "pano_000076",
         "bearing": 86.1,
+        "arrowYaw": 358.9,
         "dist": 10.13
       }
     ],
@@ -26,11 +30,13 @@
       {
         "to": "pano_000075",
         "bearing": 266.1,
+        "arrowYaw": 184.3,
         "dist": 10.13
       },
       {
         "to": "pano_000077",
         "bearing": 93.8,
+        "arrowYaw": 356.5,
         "dist": 10.22
       }
     ],
@@ -38,11 +44,13 @@
       {
         "to": "pano_000078",
         "bearing": 148.6,
+        "arrowYaw": 330.7,
         "dist": 10.08
       },
       {
         "to": "pano_000076",
         "bearing": 273.8,
+        "arrowYaw": 205.5,
         "dist": 10.22
       }
     ],
@@ -50,11 +58,13 @@
       {
         "to": "pano_000079",
         "bearing": 202.1,
+        "arrowYaw": 346.7,
         "dist": 10.03
       },
       {
         "to": "pano_000077",
         "bearing": 328.6,
+        "arrowYaw": 220.1,
         "dist": 10.08
       }
     ],
@@ -62,11 +72,13 @@
       {
         "to": "pano_000078",
         "bearing": 22.1,
+        "arrowYaw": 249.3,
         "dist": 10.03
       },
       {
         "to": "pano_000080",
         "bearing": 268,
+        "arrowYaw": 3.3,
         "dist": 10.32
       }
     ],
@@ -74,11 +86,13 @@
       {
         "to": "pano_000081",
         "bearing": 258.9,
+        "arrowYaw": 3.8,
         "dist": 10.29
       },
       {
         "to": "pano_000079",
         "bearing": 88,
+        "arrowYaw": 174.7,
         "dist": 10.32
       }
     ],
@@ -86,11 +100,13 @@
       {
         "to": "pano_000080",
         "bearing": 78.9,
+        "arrowYaw": 175.7,
         "dist": 10.29
       },
       {
         "to": "pano_000082",
         "bearing": 253.9,
+        "arrowYaw": 0.7,
         "dist": 10.33
       }
     ],
@@ -98,11 +114,13 @@
       {
         "to": "pano_000083",
         "bearing": 245.8,
+        "arrowYaw": 3.9,
         "dist": 10.27
       },
       {
         "to": "pano_000081",
         "bearing": 73.9,
+        "arrowYaw": 175.8,
         "dist": 10.33
       }
     ],
@@ -110,11 +128,13 @@
       {
         "to": "pano_000082",
         "bearing": 65.8,
+        "arrowYaw": 166.9,
         "dist": 10.27
       },
       {
         "to": "pano_000084",
         "bearing": 232.8,
+        "arrowYaw": 359.9,
         "dist": 10.32
       }
     ],
@@ -122,11 +142,13 @@
       {
         "to": "pano_000085",
         "bearing": 229.1,
+        "arrowYaw": 3.6,
         "dist": 10.05
       },
       {
         "to": "pano_000083",
         "bearing": 52.8,
+        "arrowYaw": 179.9,
         "dist": 10.32
       }
     ],
@@ -134,11 +156,13 @@
       {
         "to": "pano_000084",
         "bearing": 49.1,
+        "arrowYaw": 175.6,
         "dist": 10.05
       },
       {
         "to": "pano_000086",
         "bearing": 224.9,
+        "arrowYaw": 359.8,
         "dist": 10.34
       }
     ],
@@ -146,11 +170,13 @@
       {
         "to": "pano_000087",
         "bearing": 226.3,
+        "arrowYaw": 1.3,
         "dist": 10.31
       },
       {
         "to": "pano_000085",
         "bearing": 44.9,
+        "arrowYaw": 182.6,
         "dist": 10.34
       }
     ],
@@ -158,11 +184,13 @@
       {
         "to": "pano_000088",
         "bearing": 212.4,
+        "arrowYaw": 11.6,
         "dist": 10.2
       },
       {
         "to": "pano_000086",
         "bearing": 46.3,
+        "arrowYaw": 177.8,
         "dist": 10.31
       }
     ],
@@ -170,11 +198,13 @@
       {
         "to": "pano_000087",
         "bearing": 32.4,
+        "arrowYaw": 171.7,
         "dist": 10.2
       },
       {
         "to": "pano_000089",
         "bearing": 204.1,
+        "arrowYaw": 0,
         "dist": 10.32
       }
     ],
@@ -182,11 +212,13 @@
       {
         "to": "pano_000088",
         "bearing": 24.1,
+        "arrowYaw": 180,
         "dist": 10.32
       },
       {
         "to": "pano_000090",
         "bearing": 204.2,
+        "arrowYaw": 360,
         "dist": 10.34
       }
     ],
@@ -194,11 +226,13 @@
       {
         "to": "pano_000091",
         "bearing": 196.1,
+        "arrowYaw": 8,
         "dist": 10.15
       },
       {
         "to": "pano_000089",
         "bearing": 24.2,
+        "arrowYaw": 180,
         "dist": 10.34
       }
     ],
@@ -206,11 +240,13 @@
       {
         "to": "pano_000092",
         "bearing": 224.1,
+        "arrowYaw": 343.4,
         "dist": 10.07
       },
       {
         "to": "pano_000090",
         "bearing": 16.1,
+        "arrowYaw": 191.4,
         "dist": 10.15
       }
     ],
@@ -218,11 +254,13 @@
       {
         "to": "pano_000091",
         "bearing": 44.1,
+        "arrowYaw": 192,
         "dist": 10.07
       },
       {
         "to": "pano_000093",
         "bearing": 237.7,
+        "arrowYaw": 358.4,
         "dist": 10.29
       }
     ],
@@ -230,11 +268,13 @@
       {
         "to": "pano_000094",
         "bearing": 213.2,
+        "arrowYaw": 13.3,
         "dist": 10.03
       },
       {
         "to": "pano_000092",
         "bearing": 57.7,
+        "arrowYaw": 168.7,
         "dist": 10.29
       }
     ],
@@ -242,11 +282,13 @@
       {
         "to": "pano_000093",
         "bearing": 33.2,
+        "arrowYaw": 149.3,
         "dist": 10.03
       },
       {
         "to": "pano_000095",
         "bearing": 184.4,
+        "arrowYaw": 358.1,
         "dist": 10.05
       }
     ],
@@ -254,11 +296,13 @@
       {
         "to": "pano_000094",
         "bearing": 4.4,
+        "arrowYaw": 184.2,
         "dist": 10.05
       },
       {
         "to": "pano_000096",
         "bearing": 216.7,
+        "arrowYaw": 331.9,
         "dist": 10.15
       }
     ],
@@ -266,11 +310,13 @@
       {
         "to": "pano_000095",
         "bearing": 36.7,
+        "arrowYaw": 215.1,
         "dist": 10.15
       },
       {
         "to": "pano_000097",
         "bearing": 254.5,
+        "arrowYaw": 357.2,
         "dist": 10.31
       }
     ],
@@ -278,11 +324,13 @@
       {
         "to": "pano_000096",
         "bearing": 74.5,
+        "arrowYaw": 184,
         "dist": 10.31
       },
       {
         "to": "pano_000098",
         "bearing": 258.6,
+        "arrowYaw": 359.9,
         "dist": 10.32
       }
     ],
@@ -290,11 +338,13 @@
       {
         "to": "pano_000099",
         "bearing": 255,
+        "arrowYaw": 5.1,
         "dist": 10.3
       },
       {
         "to": "pano_000097",
         "bearing": 78.6,
+        "arrowYaw": 181.6,
         "dist": 10.32
       }
     ],
@@ -302,11 +352,13 @@
       {
         "to": "pano_000100",
         "bearing": 224.7,
+        "arrowYaw": 14.9,
         "dist": 10.27
       },
       {
         "to": "pano_000098",
         "bearing": 75,
+        "arrowYaw": 164.6,
         "dist": 10.3
       }
     ],
@@ -314,11 +366,13 @@
       {
         "to": "pano_000099",
         "bearing": 44.7,
+        "arrowYaw": 153.6,
         "dist": 10.27
       },
       {
         "to": "pano_000101",
         "bearing": 194.8,
+        "arrowYaw": 3.5,
         "dist": 10.31
       }
     ],
@@ -326,11 +380,13 @@
       {
         "to": "pano_000102",
         "bearing": 199.8,
+        "arrowYaw": 355.3,
         "dist": 10.26
       },
       {
         "to": "pano_000100",
         "bearing": 14.8,
+        "arrowYaw": 180.2,
         "dist": 10.31
       }
     ],
@@ -338,11 +394,13 @@
       {
         "to": "pano_000101",
         "bearing": 19.8,
+        "arrowYaw": 201.8,
         "dist": 10.26
       },
       {
         "to": "pano_000103",
         "bearing": 247.3,
+        "arrowYaw": 334.2,
         "dist": 10.38
       }
     ],
@@ -350,11 +408,13 @@
       {
         "to": "pano_000104",
         "bearing": 259.5,
+        "arrowYaw": 359.8,
         "dist": 10.32
       },
       {
         "to": "pano_000102",
         "bearing": 67.3,
+        "arrowYaw": 192,
         "dist": 10.38
       }
     ],
@@ -362,11 +422,13 @@
       {
         "to": "pano_000103",
         "bearing": 79.5,
+        "arrowYaw": 180.7,
         "dist": 10.32
       },
       {
         "to": "pano_000105",
         "bearing": 234.4,
+        "arrowYaw": 25.8,
         "dist": 10.39
       }
     ],
@@ -374,11 +436,13 @@
       {
         "to": "pano_000106",
         "bearing": 230,
+        "arrowYaw": 357.1,
         "dist": 10.02
       },
       {
         "to": "pano_000104",
         "bearing": 54.4,
+        "arrowYaw": 172.7,
         "dist": 10.39
       }
     ],
@@ -386,11 +450,13 @@
       {
         "to": "pano_000105",
         "bearing": 50,
+        "arrowYaw": 188,
         "dist": 10.02
       },
       {
         "to": "pano_000107",
         "bearing": 237.3,
+        "arrowYaw": 0.7,
         "dist": 10.05
       }
     ],
@@ -398,6 +464,7 @@
       {
         "to": "pano_000106",
         "bearing": 57.3,
+        "arrowYaw": 180.7,
         "dist": 10.05
       }
     ]

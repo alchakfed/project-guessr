@@ -8,6 +8,7 @@
       "x": 1694.76,
       "z": -5088.82,
       "y": 70,
+      "yaw": -92.46,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -17,6 +18,7 @@
       "x": 1704.75,
       "z": -5088.45,
       "y": 70,
+      "yaw": -85.03,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -26,6 +28,7 @@
       "x": 1714.86,
       "z": -5087.76,
       "y": 70,
+      "yaw": -90.36,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -35,6 +38,7 @@
       "x": 1725.06,
       "z": -5088.44,
       "y": 70,
+      "yaw": -119.29,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -44,6 +48,7 @@
       "x": 1730.31,
       "z": -5097.05,
       "y": 70,
+      "yaw": -188.76,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -53,6 +58,7 @@
       "x": 1726.54,
       "z": -5106.34,
       "y": 70,
+      "yaw": -271.35,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -62,6 +68,7 @@
       "x": 1716.23,
       "z": -5106.7,
       "y": 70,
+      "yaw": -262.7,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -71,6 +78,7 @@
       "x": 1706.13,
       "z": -5108.68,
       "y": 70,
+      "yaw": -254.57,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -80,6 +88,7 @@
       "x": 1696.21,
       "z": -5111.55,
       "y": 70,
+      "yaw": -249.68,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -89,6 +98,7 @@
       "x": 1686.84,
       "z": -5115.76,
       "y": 70,
+      "yaw": -232.72,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -98,6 +108,7 @@
       "x": 1678.62,
       "z": -5122,
       "y": 70,
+      "yaw": -232.72,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -107,6 +118,7 @@
       "x": 1671.02,
       "z": -5128.58,
       "y": 69,
+      "yaw": -224.68,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -116,6 +128,7 @@
       "x": 1663.72,
       "z": -5135.9,
       "y": 69,
+      "yaw": -227.57,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -125,6 +138,7 @@
       "x": 1656.27,
       "z": -5143.03,
       "y": 69,
+      "yaw": -224.07,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -134,6 +148,7 @@
       "x": 1650.8,
       "z": -5151.64,
       "y": 69,
+      "yaw": -204.15,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -143,6 +158,7 @@
       "x": 1646.58,
       "z": -5161.06,
       "y": 69,
+      "yaw": -204.15,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -152,6 +168,7 @@
       "x": 1642.35,
       "z": -5170.49,
       "y": 69,
+      "yaw": -204.15,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -161,6 +178,7 @@
       "x": 1639.53,
       "z": -5180.24,
       "y": 69,
+      "yaw": -207.55,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -170,6 +188,7 @@
       "x": 1632.52,
       "z": -5187.47,
       "y": 69,
+      "yaw": -236.13,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -179,6 +198,7 @@
       "x": 1623.82,
       "z": -5192.96,
       "y": 69,
+      "yaw": -226.43,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -188,6 +208,7 @@
       "x": 1618.33,
       "z": -5201.36,
       "y": 69.5,
+      "yaw": -182.47,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -197,6 +218,7 @@
       "x": 1617.56,
       "z": -5211.38,
       "y": 70,
+      "yaw": -188.59,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -206,6 +228,7 @@
       "x": 1611.49,
       "z": -5219.52,
       "y": 69,
+      "yaw": -251.77,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -215,6 +238,7 @@
       "x": 1601.55,
       "z": -5222.27,
       "y": 69,
+      "yaw": -258.5,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -224,6 +248,7 @@
       "x": 1591.43,
       "z": -5224.31,
       "y": 69,
+      "yaw": -260.16,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -233,6 +258,7 @@
       "x": 1581.48,
       "z": -5226.97,
       "y": 69,
+      "yaw": -239.63,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -242,6 +268,7 @@
       "x": 1574.25,
       "z": -5234.27,
       "y": 69,
+      "yaw": -198.29,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -251,6 +278,7 @@
       "x": 1571.61,
       "z": -5244.24,
       "y": 69,
+      "yaw": -195.06,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -260,6 +288,7 @@
       "x": 1568.14,
       "z": -5253.9,
       "y": 69,
+      "yaw": -221.54,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -269,6 +298,7 @@
       "x": 1558.56,
       "z": -5257.9,
       "y": 69,
+      "yaw": -259.29,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -278,6 +308,7 @@
       "x": 1548.41,
       "z": -5259.79,
       "y": 69,
+      "yaw": -260.16,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -287,6 +318,7 @@
       "x": 1539.96,
       "z": -5265.84,
       "y": 68,
+      "yaw": -227.13,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -296,6 +328,7 @@
       "x": 1532.28,
       "z": -5272.28,
       "y": 70.83,
+      "yaw": -237.97,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     },
@@ -305,6 +338,7 @@
       "x": 1523.82,
       "z": -5277.71,
       "y": 68,
+      "yaw": -237.97,
       "dimension": "minecraft:overworld",
       "world": "play.ccnetmc.com"
     }
