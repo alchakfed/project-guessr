@@ -283,9 +283,9 @@ wss.on('connection', (ws) => {
     if (!room) return;
     const wasPublic = room.isPublic;
     // Grace-window disconnect: keep the slot (score/team/host) for a few
-    // minutes so the player can reconnect. If they have no reconnect key (old
-    // client) or the slot can't be preserved, they're removed immediately.
-    const preserved = room.disconnect(ws.clientId);
+    // minutes so the player can reconnect. Pass `ws` so disconnect() can ignore
+    // a STALE close from a socket the player already replaced via reconnect.
+    const preserved = room.disconnect(ws.clientId, ws);
     if (room.isEmpty()) {
       clearRoundTimer(room);
       rooms.delete(room.code);

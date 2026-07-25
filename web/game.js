@@ -147,9 +147,20 @@ export class Room {
   // can reconnect. Returns true if the slot was preserved (caller should
   // broadcast a lobby update showing them as offline), false if they were
   // removed outright (no key -> no reconnect possible).
-  disconnect(clientId) {
+  //
+  // `closingWs` is the WebSocket whose close triggered this. If the player has
+  // ALREADY reconnected on a different socket (p.ws !== closingWs), this close
+  // is STALE — the old socket finally closing after the new one took over — and
+  // must be ignored, or it would null out the live connection and silently cut
+  // the reconnected player off from all further broadcasts.
+  disconnect(clientId, closingWs) {
     const p = this.players.get(clientId);
     if (!p) return false;
+    if (closingWs && p.ws && p.ws !== closingWs) {
+      // Stale close from a superseded socket; the player is already back on a
+      // new ws. Ignore it entirely.
+      return p.disconnectedAt == null ? false : true;
+    }
     // NOTE: we deliberately do NOT delete this.guesses[clientId]. A guess they
     // locked in before dropping should still count (and be restored on
     // reconnect). allGuessed() already skips disconnected players, so keeping

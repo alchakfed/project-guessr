@@ -440,8 +440,18 @@ function doReconnect() {
   ws.onmessage = (ev) => handle(JSON.parse(ev.data));
   ws.onclose = () => {
     state.connected = false;
-    $('lobbyError').textContent = 'Reconnect failed — the room may have expired. Try again.';
-    showReconnectButton();
+    // If we never got 'joined' back (server down / room expired / key invalid),
+    // surface the failure. If we DID reconnect and later drop again, treat it
+    // like any mid-game drop: show the Reconnect button + lobby so the player
+    // can rejoin once more.
+    if (state.code) {
+      $('lobbyError').textContent = 'Connection lost — click Reconnect to rejoin.';
+      showReconnectButton();
+      showScreen('lobby');
+    } else {
+      $('lobbyError').textContent = 'Reconnect failed — the room may have expired. Try again.';
+      showReconnectButton();
+    }
   };
 }
 
