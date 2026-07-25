@@ -146,13 +146,44 @@ function broadcast(room, obj) {
 
 function playerList(room) {
   return [...room.players.entries()].map(([clientId, p]) => ({
-    clientId, name: p.name, isHost: clientId === room.hostId,
+    clientId, name: p.name, isHost: clientId === room.hostId, team: p.team ?? null,
   }));
+}
+
+// Everything the client needs to render the lobby: roster + the shared options.
+function lobbyMsg(room) {
+  return {
+    t: 'lobby',
+    players: playerList(room),
+    hostId: room.hostId,
+    mode: room.mode,
+    hp: room.startHp,
+    roundTime: room.roundTime,
+    allowMove: room.allowMove,
+  };
+}
+
+// --- Per-round countdown timer (only when roundTime > 0) -------------------
+// The server is authoritative: when the timer fires we reveal the round with
+// whatever guesses have arrived. The client shows a cosmetic mirror countdown.
+const roundTimers = new Map(); // roomCode -> Timeout
+function clearRoundTimer(room) {
+  const t = roundTimers.get(room.code);
+  if (t) { clearTimeout(t); roundTimers.delete(room.code); }
+}
+function armRoundTimer(room) {
+  clearRoundTimer(room);
+  if (!room.roundTime) return;
+  roundTimers.set(room.code, setTimeout(() => {
+    roundTimers.delete(room.code);
+    if (room.state === 'playing') revealRound(room);
+  }, room.roundTime * 1000));
 }
 
 function sendRound(room) {
   const r = room.currentRound();
   if (!r) return;
+  armRoundTimer(room);
   // Deliberately omit x/z — the client must not know the answer.
   broadcast(room, {
     t: 'round',
@@ -160,6 +191,11 @@ function sendRound(room) {
     total: room.rounds.length,
     id: r.id,
     folder: r.folder || r.id,
+    roundTime: room.roundTime,
+    allowMove: room.allowMove,
+    mode: room.mode,
+    teams: room.teamsSnapshot(),
+    deadline: room.roundTime ? Date.now() + room.roundTime * 1000 : null,
   });
 }
 
@@ -178,9 +214,10 @@ wss.on('connection', (ws) => {
     if (!room) return;
     room.removePlayer(ws.clientId);
     if (room.isEmpty()) {
+      clearRoundTimer(room);
       rooms.delete(room.code);
     } else {
-      broadcast(room, { t: 'lobby', players: playerList(room), hostId: room.hostId });
+      broadcast(room, lobbyMsg(room));
     }
   });
 });
@@ -190,8 +227,10 @@ function handle(ws, msg) {
     case 'create': {
       let code;
       do { code = makeRoomCode(); } while (rooms.has(code));
-      const roundsPerGame = clamp(parseInt(msg.rounds, 10) || 5, 1, manifest.rounds.length);
-      const room = new Room(code, manifest.rounds, mapMeta, roundsPerGame);
+      const room = new Room(code, manifest.rounds, mapMeta, {
+        rounds: msg.rounds, mode: msg.mode, hp: msg.hp,
+        roundTime: msg.roundTime, allowMove: msg.allowMove,
+      });
       rooms.set(code, room);
       joinRoom(ws, room, msg.name);
       break;
@@ -201,6 +240,30 @@ function handle(ws, msg) {
       if (!room) { send(ws, { t: 'error', message: 'Room not found' }); return; }
       if (room.state !== 'lobby') { send(ws, { t: 'error', message: 'Game already started' }); return; }
       joinRoom(ws, room, msg.name);
+      break;
+    }
+    case 'setoptions': {
+      const room = rooms.get(ws.roomCode);
+      if (!room || ws.clientId !== room.hostId) return;
+      room.setOptions(msg);
+      broadcast(room, lobbyMsg(room));
+      break;
+    }
+    case 'setteam': {
+      const room = rooms.get(ws.roomCode);
+      if (!room || ws.clientId !== room.hostId) return;
+      if (room.setTeam(msg.clientId, msg.team)) broadcast(room, lobbyMsg(room));
+      break;
+    }
+    case 'kick': {
+      const room = rooms.get(ws.roomCode);
+      if (!room || ws.clientId !== room.hostId) return;
+      const victimWs = room.kick(msg.clientId);
+      if (victimWs) {
+        send(victimWs, { t: 'kicked' });
+        victimWs.roomCode = null;
+        broadcast(room, lobbyMsg(room));
+      }
       break;
     }
     case 'start': {
@@ -215,6 +278,18 @@ function handle(ws, msg) {
       if (!room) return;
       const ok = room.submitGuess(ws.clientId, Number(msg.x), Number(msg.z));
       if (!ok) return;
+      // Team Duel: share this guess LIVE with teammates only (never opponents,
+      // never the answer) so a team can coordinate like real GeoGuessr duels.
+      if (room.mode === 'teamduel') {
+        const myTeam = room.teamKeyOf(ws.clientId);
+        const me = room.players.get(ws.clientId);
+        for (const [cid, p] of room.players) {
+          if (cid === ws.clientId) continue;
+          if (room.teamKeyOf(cid) === myTeam) {
+            send(p.ws, { t: 'teamguess', clientId: ws.clientId, name: me.name, x: Number(msg.x), z: Number(msg.z) });
+          }
+        }
+      }
       // Let everyone see who has locked in.
       broadcast(room, { t: 'guessed', clientId: ws.clientId, count: room.guesses.size, total: room.players.size });
       if (room.allGuessed()) revealRound(room);
@@ -233,7 +308,8 @@ function handle(ws, msg) {
       if (room.state !== 'roundover') return;
       room.nextRound();
       if (room.state === 'finished') {
-        broadcast(room, { t: 'finished', board: room.scoreboard() });
+        broadcast(room, { t: 'finished', board: room.scoreboard(),
+          teams: room.teamsSnapshot(), winner: room.winner, reason: room.endReason });
       } else {
         sendRound(room);
       }
@@ -253,13 +329,20 @@ function joinRoom(ws, room, name) {
     isHost: ws.clientId === room.hostId,
     mapMeta,
   });
-  broadcast(room, { t: 'lobby', players: playerList(room), hostId: room.hostId });
+  broadcast(room, lobbyMsg(room));
 }
 
 function revealRound(room) {
-  const { truth, results } = room.scoreRound();
-  broadcast(room, { t: 'roundresult', truth, results, index: room.roundIndex, total: room.rounds.length });
+  clearRoundTimer(room);
+  const { truth, results, teams, damage } = room.scoreRound();
+  broadcast(room, { t: 'roundresult', truth, results, teams, damage,
+    mode: room.mode, index: room.roundIndex, total: room.rounds.length });
   broadcast(room, { t: 'scoreboard', board: room.scoreboard() });
+  // Sudden death: a side hit 0 HP mid-game -> end immediately.
+  if (room.state === 'finished') {
+    broadcast(room, { t: 'finished', board: room.scoreboard(),
+      teams: room.teamsSnapshot(), winner: room.winner, reason: room.endReason });
+  }
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }

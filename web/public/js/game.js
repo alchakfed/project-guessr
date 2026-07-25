@@ -49,6 +49,14 @@ const state = {
   links: null,       // navigation graph {folder: [{to, bearing, dist}]}
   startFolder: null, // where the round began — scoring is pinned here
   currentFolder: null, // panorama currently shown (may differ after roaming)
+  // --- Game mode / duel state ---
+  mode: 'classic',       // classic | duel | teamduel
+  myTeam: null,          // this client's team key (server-assigned)
+  roundTeams: null,      // latest team HP snapshot from the server
+  allowMove: true,       // per-game roaming toggle (overrides CFG.ENABLE_MOVEMENT)
+  timerId: null,         // setInterval for the round countdown
+  deadline: null,        // ms epoch the current round auto-locks
+  teamMarkers: {},       // clientId -> Leaflet marker for live teammate guesses
 };
 
 /* ------------------------------------------------------------------ *
@@ -152,7 +160,11 @@ function handle(msg) {
     case 'lobby':
       state.players = msg.players;
       state.isHost = msg.hostId === state.clientId;
-      renderPlayers(msg.players, msg.hostId);
+      state.mode = msg.mode || 'classic';
+      state.allowMove = msg.allowMove !== false;
+      const me = msg.players.find((p) => p.clientId === state.clientId);
+      state.myTeam = me ? me.team : null;
+      renderRoom(msg);
       $('startBtn').classList.toggle('hidden', !state.isHost);
       $('waitMsg').classList.toggle('hidden', state.isHost);
       break;
@@ -162,6 +174,9 @@ function handle(msg) {
     case 'guessed':
       $('guessStatus').textContent = `Locked in: ${msg.count} / ${msg.total}`;
       break;
+    case 'teamguess':
+      showTeammateGuess(msg);
+      break;
     case 'roundresult':
       showRoundResult(msg);
       break;
@@ -169,7 +184,12 @@ function handle(msg) {
       // Kept for future live scoreboard; results table already shows totals.
       break;
     case 'finished':
-      showFinal(msg.board);
+      showFinal(msg);
+      break;
+    case 'kicked':
+      state.kicked = true;
+      $('lobbyError').textContent = 'You were removed from the room by the host.';
+      showScreen('lobby');
       break;
     case 'error':
       $('lobbyError').textContent = msg.message;
@@ -180,15 +200,73 @@ function handle(msg) {
 /* ------------------------------------------------------------------ *
  *  Lobby / room
  * ------------------------------------------------------------------ */
+const MODE_LABEL = {
+  classic: 'Classic — highest score wins',
+  duel: 'Duel — HP battle, closest guess deals damage',
+  teamduel: 'Team Duel — two teams share HP',
+};
+
+function renderRoom(msg) {
+  const parts = [MODE_LABEL[msg.mode] || 'Classic'];
+  if (msg.mode === 'duel' || msg.mode === 'teamduel') parts.push(`${msg.hp} HP`);
+  parts.push(msg.roundTime ? `${msg.roundTime}s / round` : 'No time limit');
+  parts.push(msg.allowMove ? 'Moving on' : 'No moving');
+  $('roomMode').textContent = parts.join(' · ');
+
+  const teamMode = msg.mode === 'teamduel';
+  $('teamCols').classList.toggle('hidden', !teamMode);
+  $('playerList').classList.toggle('hidden', teamMode);
+  if (teamMode) renderTeams(msg.players, msg.hostId);
+  else renderPlayers(msg.players, msg.hostId);
+}
+
+// Build one <li> for a player, with host-only move/kick controls.
+function playerLi(p, hostId, teamMode) {
+  const li = document.createElement('li');
+  const you = p.clientId === state.clientId ? ' (you)' : '';
+  const label = document.createElement('span');
+  label.className = p.clientId === state.clientId ? 'you' : '';
+  label.textContent = p.name + you;
+  li.appendChild(label);
+  if (p.clientId === hostId) {
+    const b = document.createElement('span');
+    b.className = 'host-badge'; b.textContent = 'HOST';
+    li.appendChild(b);
+  }
+  // Host controls (not shown on the host's own row).
+  if (state.isHost && p.clientId !== state.clientId) {
+    const ctrls = document.createElement('span');
+    ctrls.className = 'host-ctrls';
+    if (teamMode) {
+      const mv = document.createElement('button');
+      mv.className = 'mini-btn';
+      mv.textContent = p.team === 1 ? '← A' : 'B →';
+      mv.title = 'Move to the other team';
+      mv.onclick = () => sendWS({ t: 'setteam', clientId: p.clientId, team: p.team === 1 ? 0 : 1 });
+      ctrls.appendChild(mv);
+    }
+    const k = document.createElement('button');
+    k.className = 'mini-btn kick';
+    k.textContent = '✕';
+    k.title = 'Kick from room';
+    k.onclick = () => sendWS({ t: 'kick', clientId: p.clientId });
+    ctrls.appendChild(k);
+    li.appendChild(ctrls);
+  }
+  return li;
+}
+
 function renderPlayers(players, hostId) {
   const ul = $('playerList');
   ul.innerHTML = '';
+  for (const p of players) ul.appendChild(playerLi(p, hostId, false));
+}
+
+function renderTeams(players, hostId) {
+  const a = $('teamA'), b = $('teamB');
+  a.innerHTML = ''; b.innerHTML = '';
   for (const p of players) {
-    const li = document.createElement('li');
-    const you = p.clientId === state.clientId ? ' (you)' : '';
-    li.innerHTML = `<span class="${p.clientId === state.clientId ? 'you' : ''}">${escapeHtml(p.name)}${you}</span>` +
-      (p.clientId === hostId ? '<span class="host-badge">HOST</span>' : '');
-    ul.appendChild(li);
+    (p.team === 1 ? b : a).appendChild(playerLi(p, hostId, true));
   }
 }
 
@@ -210,6 +288,12 @@ function startRound(msg) {
   $('guessStatus').textContent = '';
   state.hasGuessed = false;
   state.guessLatLng = null;
+  state.mode = msg.mode || state.mode;
+  state.allowMove = msg.allowMove !== false;
+  state.teamMarkers = {};
+  if (msg.teams) state.roundTeams = msg.teams;
+  updateHpBars(state.roundTeams);
+  startRoundTimer(msg.deadline);
 
   // Scoring is pinned to where the round starts; roaming never moves this.
   state.startFolder = msg.folder;
@@ -223,6 +307,75 @@ function startRound(msg) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  Duel healthbars + round timer
+ * ------------------------------------------------------------------ */
+// Show your side's HP top-left and the opponent's top-right. In team duel your
+// side = your team; in solo duel your side = you. Hidden entirely in classic.
+function updateHpBars(teams) {
+  const self = $('hpSelf'), opp = $('hpOpp');
+  if (!teams || state.mode === 'classic') {
+    self.classList.add('hidden'); opp.classList.add('hidden');
+    return;
+  }
+  const mineKey = state.mode === 'teamduel' ? String(state.myTeam == null ? 0 : state.myTeam) : state.clientId;
+  const mine = teams.find((t) => t.team === mineKey);
+  const others = teams.filter((t) => t.team !== mineKey);
+  // Opponent bar shows the strongest surviving rival (the one to beat).
+  const rival = others.slice().sort((a, b) => b.hp - a.hp)[0] || null;
+  renderHpBar(self, mine, 0);
+  renderHpBar(opp, rival, others.length - 1);
+}
+
+function renderHpBar(el, team, extraRivals) {
+  if (!team) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const pct = Math.max(0, Math.min(100, (team.hp / team.maxHp) * 100));
+  const fill = el.querySelector('.hp-fill');
+  const prevW = parseFloat(fill.style.width) || 100;
+  fill.style.width = pct + '%';
+  if (pct < prevW - 0.01) { el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); }
+  el.querySelector('.hp-label').textContent = team.label + (extraRivals > 0 ? ` (+${extraRivals} more)` : '');
+  el.querySelector('.hp-num').textContent = `${team.hp} / ${team.maxHp}`;
+}
+
+// Cosmetic mirror of the server's authoritative round timer.
+function startRoundTimer(deadline) {
+  stopRoundTimer();
+  const pill = $('roundTimer');
+  if (!deadline) { pill.classList.add('hidden'); return; }
+  state.deadline = deadline;
+  pill.classList.remove('hidden');
+  const tick = () => {
+    const left = Math.max(0, Math.round((state.deadline - Date.now()) / 1000));
+    pill.textContent = `⏱ ${left}s`;
+    pill.classList.toggle('urgent', left <= 10);
+    if (left <= 0) {
+      stopRoundTimer();
+      // Auto-lock whatever pin is placed (server also enforces this).
+      if (!state.hasGuessed && state.guessLatLng) submitGuess();
+    }
+  };
+  tick();
+  state.timerId = setInterval(tick, 250);
+}
+
+function stopRoundTimer() {
+  if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+  $('roundTimer').classList.add('hidden');
+}
+
+// A teammate locked in a guess: drop their pin on our map so we can coordinate.
+function showTeammateGuess(msg) {
+  if (!state.map || !L) return;
+  const ll = worldToLatLng(msg.x, msg.z);
+  if (state.teamMarkers[msg.clientId]) state.map.removeLayer(state.teamMarkers[msg.clientId]);
+  const m = L.circleMarker(ll, {
+    radius: 6, color: '#fff', weight: 2, fillColor: '#e8b84a', fillOpacity: 0.9,
+  }).addTo(state.map).bindTooltip(`${msg.name} (teammate)`, { direction: 'top' });
+  state.teamMarkers[msg.clientId] = m;
+}
+
+/* ------------------------------------------------------------------ *
  *  Panorama viewer + Street-View movement arrows
  *  ------------------------------------------------------------------
  *  The viewer is (re)built whenever we show a panorama — both at round start
@@ -233,7 +386,7 @@ function startRound(msg) {
  *  scores against is the round's start panorama.
  * ------------------------------------------------------------------ */
 function neighboursFor(folder) {
-  if (!CFG.ENABLE_MOVEMENT || !state.links) return [];
+  if (!CFG.ENABLE_MOVEMENT || !state.allowMove || !state.links) return [];
   return state.links[folder] || [];
 }
 
@@ -362,7 +515,73 @@ function moveTo(folder) {
 function onSceneShown(folder) {
   const moved = folder !== state.startFolder;
   $('roamHint').classList.toggle('hidden', !moved);
+  $('backToStartBtn').classList.toggle('hidden', !moved);
   preloadNeighbours(folder);
+}
+
+// Spin the little bottom-left compass so its needle points to TRUE WORLD NORTH.
+//
+// We never receive an absolute heading directly, but links.json gives, per
+// neighbour, both the absolute `bearing` (degrees clockwise from +Z = north) and
+// the on-screen `arrowYaw` we already render the movement arrow at. A rendered
+// arrow at screen-yaw `arrowYawFor(n)` is known-correct: it points at world
+// bearing `n.bearing`. So the screen-yaw that points at north (bearing 0) is
+//   northScreenYaw = arrowYawFor(n) - yawSign * n.bearing
+// (same handedness the arrows already use, so whatever face-order/mirror fix is
+// in config is inherited — this is what kills the old ~45deg constant offset).
+// We average that over all neighbours (circular mean) for stability. This leaks
+// no coordinate: bearings are already public in links.json and reveal only
+// orientation, never position.
+//
+// Panoramas with no neighbours have no bearing data -> fall back to relative
+// mode (needle = this panorama's captured-forward face), same as before.
+const captureNorthCache = new Map(); // folder -> northScreenYaw (deg) or null
+function northScreenYawFor(folder) {
+  if (captureNorthCache.has(folder)) return captureNorthCache.get(folder);
+  const yawSign = CFG.PANO_YAW_SIGN === -1 ? -1 : 1;
+  // Read link data directly (not neighboursFor) so the compass keeps true-north
+  // even when roaming is disabled for the game — we only need the bearings, not
+  // the movement arrows.
+  const raw = (state.links && state.links[folder]) || [];
+  const ns = raw.filter((n) => n.bearing != null);
+  let val = null;
+  if (ns.length) {
+    let sx = 0, sy = 0;
+    for (const n of ns) {
+      const a = (arrowYawFor(n) - yawSign * n.bearing) * Math.PI / 180;
+      sx += Math.cos(a); sy += Math.sin(a);
+    }
+    val = Math.atan2(sy, sx) * 180 / Math.PI; // circular mean, [-180,180)
+  }
+  captureNorthCache.set(folder, val);
+  return val;
+}
+
+// Rotate the rose so NORTH sits at northScreenYaw relative to the current view
+// centre. The needle is fixed at the top (screen "up" = view centre), so the
+// rose's N glyph must move to (northScreenYaw - yaw). If we have no bearing data
+// for this scene, fall back to the relative compass (rotate by -yaw).
+function startCompassLoop() {
+  const rose = $('compassRose');
+  const compass = $('compass');
+  if (!rose) return;
+  let raf = 0;
+  const tick = () => {
+    raf = requestAnimationFrame(tick);
+    if (!state.pano || !$('game').classList.contains('active')) return;
+    let yaw = 0;
+    try { yaw = state.pano.getYaw(); } catch (_) { return; }
+    const north = northScreenYawFor(state.currentFolder);
+    if (north == null) {
+      rose.style.transform = `rotate(${-yaw}deg)`;
+      if (compass) compass.classList.add('relative');
+    } else {
+      rose.style.transform = `rotate(${north - yaw}deg)`;
+      if (compass) compass.classList.remove('relative');
+    }
+  };
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(tick);
 }
 
 // Prefetch the cubemap faces of every panorama the player can walk to from
@@ -534,6 +753,8 @@ function submitGuess() {
  *  Round result overlay
  * ------------------------------------------------------------------ */
 function showRoundResult(msg) {
+  stopRoundTimer();
+  if (msg.teams) { state.roundTeams = msg.teams; updateHpBars(msg.teams); }
   $('resultOverlay').classList.remove('hidden');
   $('resultTitle').textContent = `Round ${msg.index + 1} / ${msg.total} — results`;
 
@@ -575,14 +796,58 @@ function showRoundResult(msg) {
     t.appendChild(tr);
   }
 
+  // Damage summary (duel modes) — who lost how much HP this round.
+  const dmgEl = $('resultDamage');
+  if (msg.damage && msg.damage.length) {
+    const lines = msg.damage.slice().sort((a, b) => a.dmg - b.dmg).map((d) => {
+      const hit = d.dmg > 0 ? `−${d.dmg} HP` : 'no damage';
+      return `<div class="${d.dmg > 0 ? 'dmg-hit' : 'dmg-safe'}">${escapeHtml(d.label)}: ${hit} · ${d.hp} HP left</div>`;
+    });
+    dmgEl.innerHTML = lines.join('');
+    dmgEl.classList.remove('hidden');
+  } else {
+    dmgEl.classList.add('hidden');
+  }
+
   const last = msg.index + 1 >= msg.total;
   $('nextBtn').classList.toggle('hidden', !state.isHost);
   $('nextBtn').textContent = last ? 'See final scores' : 'Next round';
   $('waitNext').classList.toggle('hidden', state.isHost);
 }
 
-function showFinal(board) {
+function showFinal(msg) {
+  stopRoundTimer();
+  const board = Array.isArray(msg) ? msg : msg.board;
+  const winner = msg && msg.winner;
+  const reason = msg && msg.reason;
+  const teams = msg && msg.teams;
   $('finalOverlay').classList.remove('hidden');
+  $('hpSelf').classList.add('hidden');
+  $('hpOpp').classList.add('hidden');
+
+  // Winner banner for duel modes.
+  const wEl = $('finalWinner');
+  if (winner) {
+    wEl.classList.remove('hidden');
+    wEl.textContent = reason === 'death'
+      ? `${winner} wins by knockout!`
+      : `${winner} wins on HP!`;
+  } else {
+    wEl.classList.add('hidden');
+  }
+
+  // Final team HP table (duel modes).
+  const teamsEl = $('finalTeams');
+  if (teams && teams.length) {
+    teamsEl.classList.remove('hidden');
+    teamsEl.innerHTML = teams.slice().sort((a, b) => b.hp - a.hp)
+      .map((t) => `<div class="final-team"><span>${escapeHtml(t.label)}</span><span>${t.hp} / ${t.maxHp} HP</span></div>`)
+      .join('');
+  } else {
+    teamsEl.classList.add('hidden');
+  }
+
+  $('finalTitle').textContent = winner ? 'Game over' : 'Final scores';
   const t = $('finalTable');
   t.innerHTML = '<tr><th>#</th><th>Player</th><th class="num">Total</th></tr>';
   board.forEach((p, i) => {
@@ -603,6 +868,7 @@ function escapeHtml(s) {
 
 window.addEventListener('DOMContentLoaded', () => {
   connect();
+  startCompassLoop();
 
   // Load the movement graph (relative bearings only — safe to expose).
   if (CFG.ENABLE_MOVEMENT) {
@@ -612,10 +878,22 @@ window.addEventListener('DOMContentLoaded', () => {
       .catch(() => { state.links = null; });
   }
 
+  // Show the Starting-HP field only for duel modes.
+  const syncModeFields = () => {
+    const duel = $('modeInput').value !== 'classic';
+    $('hpField').classList.toggle('hidden', !duel);
+  };
+  $('modeInput').onchange = syncModeFields;
+  syncModeFields();
+
   $('createBtn').onclick = () => {
     const name = $('nameInput').value.trim() || 'Player';
     const rounds = parseInt($('roundsInput').value, 10) || 5;
-    sendWS({ t: 'create', name, rounds });
+    const mode = $('modeInput').value;
+    const hp = parseInt($('hpInput').value, 10) || 6000;
+    const roundTime = parseInt($('timeInput').value, 10) || 0;
+    const allowMove = $('moveInput').checked;
+    sendWS({ t: 'create', name, rounds, mode, hp, roundTime, allowMove });
   };
   $('joinBtn').onclick = () => {
     const name = $('nameInput').value.trim() || 'Player';
@@ -649,7 +927,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
     }
-    if (!CFG.ENABLE_MOVEMENT) return;
+    if (!CFG.ENABLE_MOVEMENT || !state.allowMove) return;
     if (!$('game').classList.contains('active')) return;
     const deg = KEY_DEG[e.key];
     if (deg === undefined) return;

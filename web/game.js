@@ -74,22 +74,66 @@ export function pickRounds(allRounds, count, seed) {
 }
 
 export class Room {
-  constructor(code, allRounds, mapMeta, roundsPerGame = 5) {
+  constructor(code, allRounds, mapMeta, opts = {}) {
     this.code = code;
     this.allRounds = allRounds;
     this.mapMeta = mapMeta;
-    this.roundsPerGame = roundsPerGame;
-    this.players = new Map();   // clientId -> { name, ws, totalScore }
+    // --- Options (all mutable in the lobby by the host via setOptions) ---
+    this.roundsPerGame = clampInt(opts.rounds, 1, allRounds.length, 5);
+    this.mode = ['classic', 'duel', 'teamduel'].includes(opts.mode) ? opts.mode : 'classic';
+    this.startHp = clampInt(opts.hp, 100, 100000, 6000);
+    this.roundTime = clampInt(opts.roundTime, 0, 600, 0); // seconds; 0 = no limit
+    this.allowMove = opts.allowMove !== false;             // default on
+
+    this.players = new Map();   // clientId -> { name, ws, totalScore, team }
     this.hostId = null;
     this.state = 'lobby';       // lobby | playing | roundover | finished
     this.rounds = [];           // selected rounds for this game
     this.roundIndex = -1;
     this.guesses = new Map();    // clientId -> { x, z } for the current round
+    this.hpByTeam = new Map();   // teamKey -> current HP (duel modes only)
+    this.winner = null;          // set when a duel ends (label string)
+    this.endReason = null;       // 'death' | 'rounds' | null
+  }
+
+  isDuel() { return this.mode === 'duel' || this.mode === 'teamduel'; }
+
+  // The team a player belongs to for scoring/HP purposes.
+  //   teamduel -> '0' or '1' (a shared side)
+  //   duel     -> the player's own clientId (each is their own side)
+  //   classic  -> null (no HP)
+  teamKeyOf(clientId) {
+    const p = this.players.get(clientId);
+    if (!p) return null;
+    if (this.mode === 'teamduel') return String(p.team == null ? 0 : p.team);
+    if (this.mode === 'duel') return clientId;
+    return null;
+  }
+
+  teamLabel(teamKey) {
+    if (this.mode === 'teamduel') return teamKey === '1' ? 'Team B' : 'Team A';
+    if (this.mode === 'duel') {
+      const p = this.players.get(teamKey);
+      return p ? p.name : 'Player';
+    }
+    return '';
   }
 
   addPlayer(clientId, name, ws) {
     if (!this.hostId) this.hostId = clientId;
-    this.players.set(clientId, { name, ws, totalScore: 0 });
+    // Team-duel joiners land on the smaller side so teams stay balanced.
+    let team = null;
+    if (this.mode === 'teamduel') team = this.smallerTeam();
+    this.players.set(clientId, { name, ws, totalScore: 0, team });
+  }
+
+  // Which of the two teams (0/1) currently has fewer members (ties -> 0).
+  smallerTeam() {
+    let a = 0, b = 0;
+    for (const p of this.players.values()) {
+      if (p.team === 1) b++; else a++;
+    }
+    return b < a ? 1 : 0;
   }
 
   removePlayer(clientId) {
@@ -105,10 +149,55 @@ export class Room {
     return this.players.size === 0;
   }
 
+  // --- Host-only lobby operations (server validates the caller is host) ---
+  setTeam(clientId, team) {
+    if (this.state !== 'lobby' || this.mode !== 'teamduel') return false;
+    const p = this.players.get(clientId);
+    if (!p) return false;
+    p.team = team === 1 || team === '1' ? 1 : 0;
+    return true;
+  }
+
+  // Remove a player by host request. Returns the removed player's ws (so the
+  // caller can notify + close it), or null if not found / illegal.
+  kick(clientId) {
+    if (clientId === this.hostId) return null; // host can't kick self
+    const p = this.players.get(clientId);
+    if (!p) return null;
+    this.removePlayer(clientId);
+    return p.ws;
+  }
+
+  setOptions(opts = {}) {
+    if (this.state !== 'lobby') return;
+    if (opts.rounds != null) this.roundsPerGame = clampInt(opts.rounds, 1, this.allRounds.length, this.roundsPerGame);
+    if (opts.mode != null && ['classic', 'duel', 'teamduel'].includes(opts.mode)) this.mode = opts.mode;
+    if (opts.hp != null) this.startHp = clampInt(opts.hp, 100, 100000, this.startHp);
+    if (opts.roundTime != null) this.roundTime = clampInt(opts.roundTime, 0, 600, this.roundTime);
+    if (opts.allowMove != null) this.allowMove = !!opts.allowMove;
+    // Switching into team-duel: make sure everyone has a side, balanced.
+    if (this.mode === 'teamduel') {
+      let i = 0;
+      for (const p of this.players.values()) {
+        if (p.team !== 0 && p.team !== 1) p.team = (i++ % 2);
+      }
+    }
+  }
+
   startGame(seed) {
     this.rounds = pickRounds(this.allRounds, this.roundsPerGame, seed);
     this.roundIndex = -1;
+    this.winner = null;
+    this.endReason = null;
     for (const p of this.players.values()) p.totalScore = 0;
+    // Initialise HP per team for duel modes.
+    this.hpByTeam = new Map();
+    if (this.isDuel()) {
+      for (const clientId of this.players.keys()) {
+        const key = this.teamKeyOf(clientId);
+        if (key != null && !this.hpByTeam.has(key)) this.hpByTeam.set(key, this.startHp);
+      }
+    }
     this.nextRound();
   }
 
@@ -117,6 +206,7 @@ export class Room {
     this.guesses.clear();
     if (this.roundIndex >= this.rounds.length) {
       this.state = 'finished';
+      if (this.isDuel() && !this.endReason) this.finishByRounds();
     } else {
       this.state = 'playing';
     }
@@ -143,6 +233,8 @@ export class Room {
     const round = this.currentRound();
     const truth = { x: round.x, z: round.z };
     const results = [];
+    // Per-team best (closest) score this round — the only thing that deals dmg.
+    const bestByTeam = new Map(); // teamKey -> best score
     for (const [clientId, player] of this.players) {
       const g = this.guesses.get(clientId);
       let entry;
@@ -150,15 +242,68 @@ export class Room {
         const { score, distance } = scoreGuess(g, truth, this.mapMeta);
         player.totalScore += score;
         entry = { clientId, name: player.name, guess: g, score, distance,
-                  totalScore: player.totalScore };
+                  totalScore: player.totalScore, team: this.teamKeyOf(clientId) };
       } else {
         entry = { clientId, name: player.name, guess: null, score: 0,
-                  distance: null, totalScore: player.totalScore };
+                  distance: null, totalScore: player.totalScore, team: this.teamKeyOf(clientId) };
+      }
+      if (this.isDuel()) {
+        const key = entry.team;
+        if (!bestByTeam.has(key) || entry.score > bestByTeam.get(key)) bestByTeam.set(key, entry.score);
       }
       results.push(entry);
     }
-    this.state = 'roundover';
-    return { truth, results };
+
+    // --- Damage: each team loses (topScore - itsBestScore) HP. For two teams
+    // this is exactly |bestA - bestB| applied to whichever guessed worse; only
+    // the round's top team takes no damage. Sudden death: game ends the instant
+    // any team hits 0. ---
+    let damage = null;
+    if (this.isDuel() && bestByTeam.size > 0) {
+      const top = Math.max(...bestByTeam.values());
+      damage = [];
+      for (const [key, best] of bestByTeam) {
+        const dmg = top - best;
+        if (dmg > 0) this.hpByTeam.set(key, Math.max(0, this.hpByTeam.get(key) - dmg));
+        damage.push({ team: key, label: this.teamLabel(key), dmg, hp: this.hpByTeam.get(key) });
+      }
+      // Anyone at 0 -> sudden death.
+      const dead = [...this.hpByTeam.entries()].filter(([, hp]) => hp <= 0).map(([k]) => k);
+      if (dead.length) {
+        this.state = 'finished';
+        this.endReason = 'death';
+        const alive = [...this.hpByTeam.entries()].filter(([, hp]) => hp > 0).map(([k]) => k);
+        this.winner = alive.length === 1 ? this.teamLabel(alive[0])
+                    : alive.length === 0 ? 'Draw'
+                    : alive.map((k) => this.teamLabel(k)).join(', ');
+      }
+    }
+
+    if (this.state !== 'finished') this.state = 'roundover';
+    return { truth, results, teams: this.teamsSnapshot(), damage };
+  }
+
+  // Decide a winner when all rounds are played without a knockout (most HP).
+  finishByRounds() {
+    if (!this.isDuel() || this.hpByTeam.size === 0) return;
+    const maxHp = Math.max(...this.hpByTeam.values());
+    const leaders = [...this.hpByTeam.entries()].filter(([, hp]) => hp === maxHp).map(([k]) => k);
+    this.endReason = 'rounds';
+    this.winner = leaders.length === 1 ? this.teamLabel(leaders[0])
+                : leaders.map((k) => this.teamLabel(k)).join(', ');
+  }
+
+  // Snapshot of team HP + membership for the client (bars, gameover screen).
+  teamsSnapshot() {
+    if (!this.isDuel()) return null;
+    const out = [];
+    for (const [key, hp] of this.hpByTeam) {
+      const members = [...this.players.entries()]
+        .filter(([cid]) => this.teamKeyOf(cid) === key)
+        .map(([cid, p]) => ({ clientId: cid, name: p.name }));
+      out.push({ team: key, label: this.teamLabel(key), hp, maxHp: this.startHp, members });
+    }
+    return out;
   }
 
   scoreboard() {
@@ -166,4 +311,10 @@ export class Room {
       .map(([clientId, p]) => ({ clientId, name: p.name, totalScore: p.totalScore }))
       .sort((a, b) => b.totalScore - a.totalScore);
   }
+}
+
+function clampInt(v, lo, hi, dflt) {
+  const n = parseInt(v, 10);
+  if (Number.isNaN(n)) return dflt;
+  return Math.max(lo, Math.min(hi, n));
 }

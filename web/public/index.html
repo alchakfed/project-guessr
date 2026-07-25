@@ -27,9 +27,28 @@
       <div class="row">
         <div class="col">
           <h3>Create a game</h3>
+          <label>Mode
+            <select id="modeInput">
+              <option value="classic">Classic (highest score wins)</option>
+              <option value="duel">Duel (HP battle, 1v1+)</option>
+              <option value="teamduel">Team Duel (2 teams share HP)</option>
+            </select>
+          </label>
           <label>Rounds
             <input id="roundsInput" type="number" min="1" max="50" value="5" />
           </label>
+          <label id="hpField" class="hidden">Starting HP
+            <input id="hpInput" type="number" min="100" max="100000" step="100" value="6000" />
+          </label>
+          <label>Round time limit
+            <select id="timeInput">
+              <option value="0">No limit</option>
+              <option value="30">30 seconds</option>
+              <option value="60">60 seconds</option>
+              <option value="120">120 seconds</option>
+            </select>
+          </label>
+          <label class="check"><input id="moveInput" type="checkbox" checked /> Allow moving / roaming</label>
           <button id="createBtn">Create room</button>
         </div>
         <div class="col">
@@ -49,7 +68,23 @@
     <div class="card">
       <h2>Room <span id="roomCode" class="code"></span></h2>
       <p class="subtitle">Share the code with friends on your network.</p>
+      <p id="roomMode" class="room-mode"></p>
+
+      <!-- Single roster (classic / duel) -->
       <ul id="playerList" class="players"></ul>
+
+      <!-- Team columns (team duel). Host can move players and kick. -->
+      <div id="teamCols" class="team-cols hidden">
+        <div class="team-col" data-team="0">
+          <h3>Team A</h3>
+          <ul id="teamA" class="players"></ul>
+        </div>
+        <div class="team-col" data-team="1">
+          <h3>Team B</h3>
+          <ul id="teamB" class="players"></ul>
+        </div>
+      </div>
+
       <button id="startBtn" class="hidden">Start game</button>
       <p id="waitMsg" class="subtitle">Waiting for the host to start…</p>
     </div>
@@ -59,12 +94,39 @@
   <div id="game" class="screen">
     <div id="panorama"></div>
 
+    <!-- Duel healthbars: your side top-left, opponent top-right. Hidden in classic. -->
+    <div id="hpSelf" class="hpbar hidden">
+      <span class="hp-label"></span>
+      <div class="hp-track"><div class="hp-fill"></div></div>
+      <span class="hp-num"></span>
+    </div>
+    <div id="hpOpp" class="hpbar opp hidden">
+      <span class="hp-label"></span>
+      <div class="hp-track"><div class="hp-fill"></div></div>
+      <span class="hp-num"></span>
+    </div>
+
     <div id="hud">
       <div id="roundInfo">Round 1 / 5</div>
+      <div id="roundTimer" class="hidden"></div>
       <div id="guessStatus"></div>
-      <div id="roamHint" class="hidden">
-        You've moved from the start. <button id="backToStartBtn" class="link-btn">Back to start</button>
+      <div id="roamHint" class="hidden">You've moved from the start.</div>
+    </div>
+
+    <!-- Bottom-left cluster: facing compass + return-to-start button -->
+    <div id="bottomLeft">
+      <div id="compass" title="Compass — the needle points north">
+        <div id="compassRose">
+          <span class="cdir cN">N</span>
+          <span class="cdir cE">E</span>
+          <span class="cdir cS">S</span>
+          <span class="cdir cW">W</span>
+        </div>
+        <div id="compassNeedle"></div>
       </div>
+      <button id="backToStartBtn" class="hidden" title="Return to where the round started">
+        <span class="btn-icon">⌖</span> Start
+      </button>
     </div>
 
     <div id="mapPanel">
@@ -82,6 +144,7 @@
           <div id="resultMiniMap"></div>
         </div>
         <table id="resultTable"></table>
+        <div id="resultDamage" class="dmg-summary hidden"></div>
         <button id="nextBtn" class="hidden">Next round</button>
         <p id="waitNext" class="subtitle hidden">Waiting for the host…</p>
       </div>
@@ -90,7 +153,9 @@
     <!-- Final scoreboard overlay -->
     <div id="finalOverlay" class="overlay hidden">
       <div class="card">
-        <h2>Final scores</h2>
+        <h2 id="finalTitle">Final scores</h2>
+        <p id="finalWinner" class="final-winner hidden"></p>
+        <div id="finalTeams" class="final-teams hidden"></div>
         <table id="finalTable"></table>
         <button id="playAgainBtn">Back to lobby</button>
       </div>

@@ -215,3 +215,158 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
   cursor: pointer;
 }
 .link-btn:hover:not(:disabled) { background: none; color: var(--accent-2); }
+
+/* ---- Bottom-left cluster: compass + return-to-start ---- */
+#bottomLeft {
+  position: absolute; bottom: 16px; left: 16px; z-index: 20;
+  display: flex; align-items: center; gap: 12px;
+}
+
+/* Compass: a rotating rose (N/E/S/W) under a fixed needle at the top. The rose
+   spins with the view; whatever direction you're facing sits under the needle. */
+#compass {
+  position: relative;
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: rgba(20, 22, 28, 0.7);
+  border: 2px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+#compassRose {
+  position: absolute; inset: 0;
+  /* JS rewrites this transform every animation frame, so NO CSS transition here:
+     a transition would animate the shortest arc on each yaw wrap (179deg ->
+     -180deg), which shows up as the rose flipping as you pass south. */
+}
+#compassRose .cdir {
+  position: absolute;
+  left: 50%; transform: translateX(-50%);
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  line-height: 1;
+}
+#compassRose .cN { top: 5px; color: var(--accent); }
+#compassRose .cS { bottom: 5px; }
+#compassRose .cE { top: 50%; left: auto; right: 6px; transform: translateY(-50%); }
+#compassRose .cW { top: 50%; left: 6px; transform: translateY(-50%); }
+/* Fixed needle at the top, pointing into the rose — marks "where you look". */
+#compassNeedle {
+  position: absolute; top: -2px; left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 11px solid var(--accent);
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+}
+
+/* Return-to-start button: compact pill with an icon, not full-width. */
+#backToStartBtn {
+  width: auto; margin: 0;
+  padding: 8px 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px;
+  background: rgba(20, 22, 28, 0.7);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+#backToStartBtn:hover:not(:disabled) { background: var(--accent); color: #10230f; }
+#backToStartBtn .btn-icon { font-size: 16px; line-height: 1; }
+
+/* ==================================================================
+   Duel modes: lobby options, teams, host controls, healthbars, timer
+   ================================================================== */
+
+/* Make <select> match the <input> styling used in the lobby. */
+select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+}
+/* Inline checkbox row (Allow moving). */
+label.check {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text); margin: 14px 0 4px;
+}
+label.check input { width: auto; }
+
+/* ---- Room: mode summary + team columns ---- */
+.room-mode {
+  color: var(--accent); font-size: 13px; font-weight: 600;
+  margin: 4px 0 12px;
+}
+.team-cols { display: flex; gap: 16px; margin: 16px 0; }
+.team-col { flex: 1; background: var(--panel-2); border-radius: 10px; padding: 8px 12px; }
+.team-col h3 { margin: 6px 0 10px; color: var(--text); }
+
+/* Host-only per-player controls (move between teams / kick). */
+.host-ctrls { display: inline-flex; gap: 6px; align-items: center; }
+.mini-btn {
+  width: auto; margin: 0; padding: 3px 8px;
+  font-size: 12px; font-weight: 700; border-radius: 6px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+}
+.mini-btn:hover:not(:disabled) { background: var(--accent); color: #10230f; }
+.mini-btn.kick { color: var(--error); }
+.mini-btn.kick:hover:not(:disabled) { background: var(--error); color: #2a0f0f; border-color: var(--error); }
+
+/* ---- In-game healthbars (duel modes) ---- */
+.hpbar {
+  position: absolute; top: 12px; z-index: 25;
+  width: 260px; max-width: 38vw;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px;
+  pointer-events: none;
+}
+#hpSelf { left: 12px; }
+#hpOpp  { right: 12px; text-align: right; }
+.hpbar .hp-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.hpbar .hp-num { font-size: 12px; color: var(--muted); }
+.hpbar .hp-track {
+  height: 12px; margin: 5px 0 3px;
+  background: #3a1f22; border-radius: 6px; overflow: hidden;
+}
+.hpbar .hp-fill {
+  height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  border-radius: 6px;
+  transition: width 0.6s ease;
+}
+/* Opponent bar fills from the right so both drain "inward". */
+#hpOpp .hp-track { transform: scaleX(-1); }
+/* Red flash when a side takes damage. */
+@keyframes hp-hit { 0% { box-shadow: 0 0 0 0 rgba(255,80,80,0.9); } 100% { box-shadow: 0 0 22px 6px rgba(255,80,80,0); } }
+.hpbar.hit { animation: hp-hit 0.55s ease-out; }
+
+/* ---- Round countdown pill ---- */
+#roundTimer {
+  display: inline-block; margin-top: 4px;
+  font-size: 14px; font-weight: 700; color: var(--text);
+}
+#roundTimer.urgent { color: var(--error); }
+
+/* ---- Result overlay: per-round damage summary ---- */
+.dmg-summary {
+  margin: 12px 0 4px; padding: 10px 12px;
+  background: var(--panel-2); border-radius: 8px;
+  font-size: 14px; line-height: 1.6;
+}
+.dmg-summary .dmg-hit { color: var(--error); font-weight: 700; }
+.dmg-summary .dmg-safe { color: var(--accent); font-weight: 700; }
+
+/* ---- Final / game-over overlay ---- */
+.final-winner {
+  color: var(--accent); font-size: 20px; font-weight: 800;
+  margin: 6px 0 10px;
+}
+.final-teams { margin: 6px 0 12px; }
+.final-team {
+  display: flex; justify-content: space-between;
+  padding: 8px 12px; margin-bottom: 6px;
+  background: var(--panel-2); border-radius: 8px; font-weight: 600;
+}
