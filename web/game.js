@@ -82,7 +82,7 @@ export class Room {
     this.roundsPerGame = clampInt(opts.rounds, 1, allRounds.length, 5);
     this.mode = ['classic', 'duel', 'teamduel'].includes(opts.mode) ? opts.mode : 'classic';
     this.startHp = clampInt(opts.hp, 100, 100000, 6000);
-    this.roundTime = clampInt(opts.roundTime, 0, 600, 0); // seconds; 0 = no limit
+    this.roundTime = clampInt(opts.roundTime, 0, 600, 100); // seconds; 0 = no limit
     this.allowMove = opts.allowMove !== false;             // default on
     this.isPublic = !!opts.isPublic;                       // listed in lobby browser
 

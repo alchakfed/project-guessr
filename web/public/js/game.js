@@ -697,9 +697,14 @@ function northScreenYawFor(folder) {
   const ns = raw.filter((n) => n.bearing != null);
   let val = null;
   if (ns.length) {
+    // A rendered arrow at screen-yaw arrowYawFor(n) is known to point at world
+    // bearing n.bearing. screen-yaw scales with bearing by -yawSign (a larger
+    // bearing lands at a smaller screen yaw), so the screen-yaw that points at
+    // bearing 0 (world north) is arrowYawFor(n) + yawSign * n.bearing. Average
+    // that across neighbours (circular mean) for a stable fix.
     let sx = 0, sy = 0;
     for (const n of ns) {
-      const a = (arrowYawFor(n) - yawSign * n.bearing) * Math.PI / 180;
+      const a = (arrowYawFor(n) + yawSign * n.bearing) * Math.PI / 180;
       sx += Math.cos(a); sy += Math.sin(a);
     }
     val = Math.atan2(sy, sx) * 180 / Math.PI; // circular mean, [-180,180)
@@ -906,13 +911,48 @@ function submitGuess() {
 /* ------------------------------------------------------------------ *
  *  Round result overlay
  * ------------------------------------------------------------------ */
+// Animate a dashed polyline "drawing in" by sliding its dash offset.
+function animateDash(line) {
+  const el = line.getElement?.();
+  if (!el) return;
+  const path = el.querySelector('path');
+  if (!path) return;
+  let off = 0;
+  path.style.strokeDashoffset = '0';
+  const id = setInterval(() => {
+    off -= 1;
+    path.style.strokeDashoffset = String(off);
+  }, 30);
+  // Stop after ~1.2s; the line stays visible at full opacity.
+  setTimeout(() => clearInterval(id), 1200);
+}
+
+// Count a number cell up from 0 to its target over ~1s (ease-out).
+function rollUp(cell) {
+  if (!cell) return;
+  const target = parseInt(cell.dataset.target, 10) || 0;
+  if (!target) { cell.textContent = '0'; return; }
+  const dur = 1000;
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+    cell.textContent = Math.round(target * eased);
+    if (p < 1) requestAnimationFrame(step);
+    else cell.textContent = target;
+  };
+  requestAnimationFrame(step);
+}
+
 function showRoundResult(msg) {
   stopRoundTimer();
   if (msg.teams) { state.roundTeams = msg.teams; updateHpBars(msg.teams); }
   $('resultOverlay').classList.remove('hidden');
   $('resultTitle').textContent = `Round ${msg.index + 1} / ${msg.total} — results`;
 
-  // Mini map showing the true location + each player's guess.
+  // Mini map showing the true location + each player's guess, GeoGuessr-style:
+  // start zoomed on the player's own guess, then fly out to reveal the actual
+  // location with a dashed line drawing between them.
   if (state.resultMap) { state.resultMap.remove(); state.resultMap = null; }
   $('resultMapWrap').classList.add('expanded'); // start expanded each round
   $('resultMiniMap').innerHTML = '';
@@ -920,35 +960,69 @@ function showRoundResult(msg) {
   state.resultMap = map;
 
   const truthLL = worldToLatLng(msg.truth.x, msg.truth.z);
-  L.circleMarker(truthLL, { radius: 9, color: '#000', weight: 2, fillColor: '#ffd23f', fillOpacity: 1 })
-    .addTo(map).bindTooltip('Actual', { permanent: true, direction: 'top' });
+  // Actual location marker (revealed after the fly-to, not immediately).
+  const truthMarker = L.circleMarker(truthLL, {
+    radius: 9, color: '#000', weight: 2, fillColor: '#ffd23f', fillOpacity: 1,
+  }).addTo(map).bindTooltip('Actual', { permanent: true, direction: 'top' });
 
+  // Each player's guess + a dashed line to the truth. Lines animate in (dash
+  // offset slides) once the camera settles.
+  const lines = [];
+  let myGuessLL = null;
   for (const r of msg.results) {
     if (!r.guess) continue;
     const gll = worldToLatLng(r.guess.x, r.guess.z);
     const mine = r.clientId === state.clientId;
+    if (mine) myGuessLL = gll;
     L.circleMarker(gll, {
       radius: 6, color: '#fff', weight: 2,
       fillColor: mine ? '#55c157' : '#4a90d9', fillOpacity: 1,
     }).addTo(map).bindTooltip(r.name, { direction: 'top' });
-    L.polyline([truthLL, gll], { color: mine ? '#55c157' : '#4a90d9', weight: 1, dashArray: '4' }).addTo(map);
+    const line = L.polyline([gll, truthLL], {
+      color: mine ? '#55c157' : '#4a90d9', weight: 2, dashArray: '6',
+      opacity: 0,
+    }).addTo(map);
+    lines.push(line);
   }
   recalcMapSize(map, 'resultMiniMap');
 
-  // Results table sorted by round score.
+  // Open on the player's guess, then fly to fit guess + actual so the line is
+  // revealed dramatically. Fall back to fitting the truth if this player didn't
+  // guess.
+  const startLL = myGuessLL || truthLL;
+  map.setView(startLL, (DM && DM.maxNativeZoom) || 6, { animate: false });
+  setTimeout(() => {
+    const bounds = L.latLngBounds(myGuessLL ? [myGuessLL, truthLL] : [truthLL]);
+    map.flyToBounds(bounds.pad(0.4), { duration: 1.1, easeLinearity: 0.25 });
+    // Reveal the actual marker + draw the lines once the camera lands.
+    setTimeout(() => {
+      truthMarker.getElement()?.classList?.add('reveal-pop');
+      for (const line of lines) {
+        line.setStyle({ opacity: 0.9 });
+        animateDash(line);
+      }
+    }, 900);
+  }, 350);
+
+  // Results table sorted by round score. Round score counts up from 0
+  // (GeoGuessr-style number roll) instead of appearing instantly.
   const rows = msg.results.slice().sort((a, b) => b.score - a.score);
   const t = $('resultTable');
   t.innerHTML = '<tr><th>Player</th><th class="num">Distance</th><th class="num">Round</th><th class="num">Total</th></tr>';
+  const rollCells = [];
   for (const r of rows) {
     const tr = document.createElement('tr');
     const mine = r.clientId === state.clientId;
     tr.innerHTML =
       `<td class="${mine ? 'you' : ''}">${escapeHtml(r.name)}</td>` +
       `<td class="num">${r.distance == null ? '—' : r.distance + ' blk'}</td>` +
-      `<td class="num">${r.score}</td>` +
+      `<td class="num roll" data-target="${r.score}">0</td>` +
       `<td class="num">${r.totalScore}</td>`;
     t.appendChild(tr);
+    rollCells.push(tr.querySelector('.roll'));
   }
+  // Kick off the count-up once the map reveal begins.
+  setTimeout(() => rollCells.forEach((c) => rollUp(c)), 1000);
 
   // Damage summary (duel modes) — who lost how much HP this round.
   const dmgEl = $('resultDamage');

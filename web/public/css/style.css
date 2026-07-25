@@ -102,13 +102,29 @@ button:disabled { background: #444a55; color: #808690; cursor: not-allowed; }
 #game { position: relative; background: #000; }
 #panorama { position: absolute; inset: 0; }
 
+/* Top-center HUD: round info + status. Timer sits above it as a big pill. */
 #hud {
-  position: absolute; top: 12px; left: 12px; z-index: 20;
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  z-index: 20;
   background: rgba(0,0,0,0.55);
-  padding: 8px 14px; border-radius: 8px;
+  padding: 8px 16px; border-radius: 10px;
   font-size: 15px; pointer-events: none;
+  text-align: center; white-space: nowrap;
 }
 #guessStatus { color: var(--muted); font-size: 13px; margin-top: 2px; }
+#roundInfo { font-weight: 700; }
+
+/* Prominent round timer pill at the very top centre. */
+#roundTimer {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+  z-index: 21;
+  padding: 6px 18px; border-radius: 999px;
+  background: rgba(0,0,0,0.6); border: 1px solid var(--border);
+  font-size: 18px; font-weight: 800; color: var(--text);
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+#roundTimer.urgent { color: var(--error); border-color: var(--error); animation: timer-pulse 0.8s ease-in-out infinite alternate; }
+@keyframes timer-pulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.08); } }
 
 #mapPanel {
   position: absolute; bottom: 16px; right: 16px; z-index: 20;
@@ -343,13 +359,6 @@ label.check input { width: auto; }
 @keyframes hp-hit { 0% { box-shadow: 0 0 0 0 rgba(255,80,80,0.9); } 100% { box-shadow: 0 0 22px 6px rgba(255,80,80,0); } }
 .hpbar.hit { animation: hp-hit 0.55s ease-out; }
 
-/* ---- Round countdown pill ---- */
-#roundTimer {
-  display: inline-block; margin-top: 4px;
-  font-size: 14px; font-weight: 700; color: var(--text);
-}
-#roundTimer.urgent { color: var(--error); }
-
 /* ---- Result overlay: per-round damage summary ---- */
 .dmg-summary {
   margin: 12px 0 4px; padding: 10px 12px;
@@ -500,3 +509,17 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: #555; }
   box-shadow: 0 8px 30px rgba(0,0,0,0.6);
   text-align: center; white-space: nowrap;
 }
+
+/* ---- GeoGuessr-style result reveal ---- */
+/* The actual-location marker pops in when the camera settles. */
+.reveal-pop {
+  animation: reveal-pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  transform-box: fill-box; transform-origin: center;
+}
+@keyframes reveal-pop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); }
+}
+/* The counting-up score cell gets a subtle highlight while rolling. */
+td.roll { color: var(--accent); font-weight: 700; }
