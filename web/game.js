@@ -84,6 +84,7 @@ export class Room {
     this.startHp = clampInt(opts.hp, 100, 100000, 6000);
     this.roundTime = clampInt(opts.roundTime, 0, 600, 0); // seconds; 0 = no limit
     this.allowMove = opts.allowMove !== false;             // default on
+    this.isPublic = !!opts.isPublic;                       // listed in lobby browser
 
     this.players = new Map();   // clientId -> { name, ws, totalScore, team }
     this.hostId = null;
@@ -175,6 +176,7 @@ export class Room {
     if (opts.hp != null) this.startHp = clampInt(opts.hp, 100, 100000, this.startHp);
     if (opts.roundTime != null) this.roundTime = clampInt(opts.roundTime, 0, 600, this.roundTime);
     if (opts.allowMove != null) this.allowMove = !!opts.allowMove;
+    if (opts.isPublic != null) this.isPublic = !!opts.isPublic;
     // Switching into team-duel: make sure everyone has a side, balanced.
     if (this.mode === 'teamduel') {
       let i = 0;

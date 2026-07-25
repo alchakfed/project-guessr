@@ -160,7 +160,31 @@ function lobbyMsg(room) {
     hp: room.startHp,
     roundTime: room.roundTime,
     allowMove: room.allowMove,
+    isPublic: room.isPublic,
+    code: room.code,
   };
+}
+
+// --- Lobby browser: a set of sockets currently viewing the public-rooms list.
+// They get a refreshed list whenever a public room's lobby state changes. ---
+const browsers = new Set();
+function browseList() {
+  const out = [];
+  for (const room of rooms.values()) {
+    if (!room.isPublic || room.state !== 'lobby') continue;
+    const host = room.players.get(room.hostId);
+    out.push({
+      code: room.code,
+      name: host ? host.name + "'s room" : 'Public room',
+      mode: room.mode,
+      players: room.players.size,
+    });
+  }
+  return { t: 'browselist', rooms: out };
+}
+function pushBrowseList() {
+  const msg = browseList();
+  for (const ws of browsers) send(ws, msg);
 }
 
 // --- Per-round countdown timer (only when roundTime > 0) -------------------
@@ -210,14 +234,18 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    browsers.delete(ws);
     const room = rooms.get(ws.roomCode);
     if (!room) return;
+    const wasPublic = room.isPublic;
     room.removePlayer(ws.clientId);
     if (room.isEmpty()) {
       clearRoundTimer(room);
       rooms.delete(room.code);
+      if (wasPublic) pushBrowseList();
     } else {
       broadcast(room, lobbyMsg(room));
+      if (wasPublic) pushBrowseList();
     }
   });
 });
@@ -229,10 +257,11 @@ function handle(ws, msg) {
       do { code = makeRoomCode(); } while (rooms.has(code));
       const room = new Room(code, manifest.rounds, mapMeta, {
         rounds: msg.rounds, mode: msg.mode, hp: msg.hp,
-        roundTime: msg.roundTime, allowMove: msg.allowMove,
+        roundTime: msg.roundTime, allowMove: msg.allowMove, isPublic: msg.isPublic,
       });
       rooms.set(code, room);
       joinRoom(ws, room, msg.name);
+      pushBrowseList();
       break;
     }
     case 'join': {
@@ -242,11 +271,24 @@ function handle(ws, msg) {
       joinRoom(ws, room, msg.name);
       break;
     }
+    // Lobby browser: this socket wants the public-rooms list (sent immediately
+    // and on every public-room change until it sends browseclose / disconnects).
+    case 'browse': {
+      browsers.add(ws);
+      send(ws, browseList());
+      break;
+    }
+    case 'browseclose': {
+      browsers.delete(ws);
+      break;
+    }
     case 'setoptions': {
       const room = rooms.get(ws.roomCode);
       if (!room || ws.clientId !== room.hostId) return;
+      const wasPublic = room.isPublic;
       room.setOptions(msg);
       broadcast(room, lobbyMsg(room));
+      if (room.isPublic || wasPublic) pushBrowseList();
       break;
     }
     case 'setteam': {
@@ -263,6 +305,7 @@ function handle(ws, msg) {
         send(victimWs, { t: 'kicked' });
         victimWs.roomCode = null;
         broadcast(room, lobbyMsg(room));
+        if (room.isPublic) pushBrowseList();
       }
       break;
     }
@@ -278,21 +321,41 @@ function handle(ws, msg) {
       if (!room) return;
       const ok = room.submitGuess(ws.clientId, Number(msg.x), Number(msg.z));
       if (!ok) return;
-      // Team Duel: share this guess LIVE with teammates only (never opponents,
-      // never the answer) so a team can coordinate like real GeoGuessr duels.
-      if (room.mode === 'teamduel') {
-        const myTeam = room.teamKeyOf(ws.clientId);
-        const me = room.players.get(ws.clientId);
-        for (const [cid, p] of room.players) {
-          if (cid === ws.clientId) continue;
-          if (room.teamKeyOf(cid) === myTeam) {
-            send(p.ws, { t: 'teamguess', clientId: ws.clientId, name: me.name, x: Number(msg.x), z: Number(msg.z) });
-          }
-        }
-      }
-      // Let everyone see who has locked in.
+      // Let everyone see who has locked in (teammate pins already arrived live
+      // via 'teampin', so no separate relay is needed here).
       broadcast(room, { t: 'guessed', clientId: ws.clientId, count: room.guesses.size, total: room.players.size });
       if (room.allGuessed()) revealRound(room);
+      break;
+    }
+    // Live teammate pin: sent on placement/move (not on lock). Team-duel only,
+    // during a round. Relayed to teammates only — leaks no answer (it's the
+    // player's own guess, never the truth) and never crosses teams.
+    case 'teampin': {
+      const room = rooms.get(ws.roomCode);
+      if (!room || room.state !== 'playing' || room.mode !== 'teamduel') return;
+      const myTeam = room.teamKeyOf(ws.clientId);
+      const me = room.players.get(ws.clientId);
+      if (!me) return;
+      const payload = { t: 'teampin', clientId: ws.clientId, name: me.name, x: Number(msg.x), z: Number(msg.z) };
+      for (const [cid, p] of room.players) {
+        if (cid === ws.clientId) continue;
+        if (room.teamKeyOf(cid) === myTeam) send(p.ws, payload);
+      }
+      break;
+    }
+    // Team chat: team-duel only, short, server-truncated. Relayed to teammates.
+    case 'chat': {
+      const room = rooms.get(ws.roomCode);
+      if (!room || room.mode !== 'teamduel') return;
+      const me = room.players.get(ws.clientId);
+      if (!me) return;
+      const text = String(msg.text || '').slice(0, 200).trim();
+      if (!text) return;
+      const myTeam = room.teamKeyOf(ws.clientId);
+      const payload = { t: 'chat', clientId: ws.clientId, name: me.name, text };
+      for (const [cid, p] of room.players) {
+        if (room.teamKeyOf(cid) === myTeam) send(p.ws, payload);
+      }
       break;
     }
     case 'forcereveal': {
@@ -330,16 +393,24 @@ function joinRoom(ws, room, name) {
     mapMeta,
   });
   broadcast(room, lobbyMsg(room));
+  if (room.isPublic) pushBrowseList();
 }
 
 function revealRound(room) {
   clearRoundTimer(room);
   const { truth, results, teams, damage } = room.scoreRound();
-  broadcast(room, { t: 'roundresult', truth, results, teams, damage,
-    mode: room.mode, index: room.roundIndex, total: room.rounds.length });
+  const finished = room.state === 'finished'; // sudden death ended the game
+  broadcast(room, {
+    t: 'roundresult', truth, results, teams, damage,
+    mode: room.mode, index: room.roundIndex, total: room.rounds.length,
+    finished, winner: room.winner, reason: room.endReason,
+  });
   broadcast(room, { t: 'scoreboard', board: room.scoreboard() });
-  // Sudden death: a side hit 0 HP mid-game -> end immediately.
-  if (room.state === 'finished') {
+  // For sudden-death finishes, the roundresult already carries the winner so the
+  // client renders the knockout banner on the result map. We still broadcast a
+  // 'finished' so any late/summary logic sees the terminal state, but the UI
+  // keys off roundresult.finished to avoid a second separate window.
+  if (finished) {
     broadcast(room, { t: 'finished', board: room.scoreboard(),
       teams: room.teamsSnapshot(), winner: room.winner, reason: room.endReason });
   }

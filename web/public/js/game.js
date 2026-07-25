@@ -57,6 +57,11 @@ const state = {
   timerId: null,         // setInterval for the round countdown
   deadline: null,        // ms epoch the current round auto-locks
   teamMarkers: {},       // clientId -> Leaflet marker for live teammate guesses
+  // --- Team chat ---
+  chatOpen: false,
+  chatHideTimer: null,
+  // --- Settings (persisted in localStorage) ---
+  settings: { disableChat: false },
 };
 
 /* ------------------------------------------------------------------ *
@@ -174,9 +179,19 @@ function handle(msg) {
       break;
     case 'guessed':
       $('guessStatus').textContent = `Locked in: ${msg.count} / ${msg.total}`;
+      lockTeammateMarker(msg.clientId);
       break;
     case 'teamguess':
-      showTeammateGuess(msg);
+      upsertTeammateMarker(msg);
+      break;
+    case 'teampin':
+      upsertTeammateMarker(msg);
+      break;
+    case 'browselist':
+      renderBrowseList(msg.rooms);
+      break;
+    case 'chat':
+      receiveChat(msg);
       break;
     case 'roundresult':
       showRoundResult(msg);
@@ -208,17 +223,36 @@ const MODE_LABEL = {
 };
 
 function renderRoom(msg) {
-  const parts = [MODE_LABEL[msg.mode] || 'Classic'];
-  if (msg.mode === 'duel' || msg.mode === 'teamduel') parts.push(`${msg.hp} HP`);
-  parts.push(msg.roundTime ? `${msg.roundTime}s / round` : 'No time limit');
-  parts.push(msg.allowMove ? 'Moving on' : 'No moving');
-  $('roomMode').textContent = parts.join(' · ');
+  // --- Options panel (host can edit, others read-only) ---
+  const editable = state.isHost;
+  for (const id of ['optMode', 'optRounds', 'optTime', 'optHp', 'optMove', 'optPublic']) {
+    const el = $(id);
+    if (el) el.disabled = !editable;
+  }
+  if ($('optMode').value !== msg.mode) $('optMode').value = msg.mode;
+  if (document.activeElement !== $('optRounds')) $('optRounds').value = msg.rounds;
+  if (document.activeElement !== $('optTime')) $('optTime').value = msg.roundTime;
+  if (document.activeElement !== $('optHp')) $('optHp').value = msg.hp;
+  $('optMove').checked = msg.allowMove;
+  $('optPublic').checked = msg.isPublic;
+  $('timeReadout').textContent = msg.roundTime ? `${msg.roundTime}s` : 'No limit';
+  const duel = msg.mode === 'duel' || msg.mode === 'teamduel';
+  $('optHpField').classList.toggle('hidden', !duel);
+
+  // Public/private badge + subtitle.
+  $('publicBadge').classList.toggle('hidden', !msg.isPublic);
+  $('roomSub').textContent = msg.isPublic
+    ? 'Public — appears in the lobby browser. Code also works.'
+    : 'Private — share the code with friends on your network.';
 
   const teamMode = msg.mode === 'teamduel';
   $('teamCols').classList.toggle('hidden', !teamMode);
   $('playerList').classList.toggle('hidden', teamMode);
   if (teamMode) renderTeams(msg.players, msg.hostId);
   else renderPlayers(msg.players, msg.hostId);
+
+  // Show the chat affordance only in team duel.
+  setChatAvailable(teamMode);
 }
 
 // Build one <li> for a player, with host-only move/kick controls.
@@ -272,6 +306,99 @@ function renderTeams(players, hostId) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  Lobby browser (public rooms)
+ * ------------------------------------------------------------------ */
+function renderBrowseList(rooms) {
+  const el = $('browseList');
+  if (!rooms || !rooms.length) {
+    el.innerHTML = '<p class="hint">No public rooms right now — create one and set it public!</p>';
+    return;
+  }
+  el.innerHTML = '';
+  for (const r of rooms) {
+    const row = document.createElement('div');
+    row.className = 'browse-row';
+    row.innerHTML =
+      `<div class="browse-info"><span class="browse-name">${escapeHtml(r.name)}</span>` +
+      `<span class="browse-meta">${MODE_LABEL_SHORT[r.mode] || r.mode} · ${r.players} player${r.players === 1 ? '' : 's'}</span></div>` +
+      `<button class="mini-btn browse-join">Join</button>`;
+    row.querySelector('.browse-join').onclick = () => {
+      const name = $('nameInput').value.trim() || 'Player';
+      sendWS({ t: 'join', code: r.code, name });
+    };
+    el.appendChild(row);
+  }
+}
+const MODE_LABEL_SHORT = { classic: 'Classic', duel: 'Duel', teamduel: 'Team Duel' };
+
+/* ------------------------------------------------------------------ *
+ *  Settings (persisted in localStorage) + team chat
+ * ------------------------------------------------------------------ */
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('pg_settings') || '{}');
+    state.settings.disableChat = !!s.disableChat;
+  } catch (_) { state.settings.disableChat = false; }
+  const el = $('disableChatInput');
+  if (el) el.checked = state.settings.disableChat;
+}
+function saveSettings() {
+  try { localStorage.setItem('pg_settings', JSON.stringify(state.settings)); } catch (_) {}
+}
+
+// Whether the team chat UI should be available at all (teamduel only, and not
+// disabled via settings).
+function setChatAvailable(teamMode) {
+  const avail = teamMode && !state.settings.disableChat;
+  $('chatTab').classList.toggle('hidden', !avail);
+  if (!avail) closeChat();
+}
+
+function openChat() {
+  if (state.settings.disableChat || state.mode !== 'teamduel') return;
+  state.chatOpen = true;
+  $('teamChat').classList.remove('hidden');
+  $('chatTab').classList.add('hidden');
+  resetChatHideTimer();
+  setTimeout(() => $('chatInput').focus(), 0);
+}
+function closeChat() {
+  state.chatOpen = false;
+  $('teamChat').classList.add('hidden');
+  if (state.mode === 'teamduel' && !state.settings.disableChat) {
+    $('chatTab').classList.remove('hidden');
+  }
+  if (state.chatHideTimer) { clearTimeout(state.chatHideTimer); state.chatHideTimer = null; }
+}
+// Auto-hide after a short period of inactivity; any new message re-shows.
+function resetChatHideTimer() {
+  if (state.chatHideTimer) clearTimeout(state.chatHideTimer);
+  state.chatHideTimer = setTimeout(() => { if (state.chatOpen) closeChat(); }, 6000);
+}
+function sendChat() {
+  const inp = $('chatInput');
+  const text = inp.value.trim();
+  inp.value = '';
+  if (!text || state.settings.disableChat) return;
+  sendWS({ t: 'chat', text });
+  resetChatHideTimer();
+}
+function receiveChat(msg) {
+  if (state.settings.disableChat) return;
+  const log = $('chatLog');
+  const mine = msg.clientId === state.clientId;
+  const line = document.createElement('div');
+  line.className = 'chat-line' + (mine ? ' me' : '');
+  line.innerHTML = `<span class="chat-name">${escapeHtml(mine ? 'You' : msg.name)}</span> ` +
+    `<span class="chat-text">${escapeHtml(msg.text)}</span>`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+  // A new message pops the panel open and resets the hide timer.
+  if (!state.chatOpen) openChat();
+  else resetChatHideTimer();
+}
+
+/* ------------------------------------------------------------------ *
  *  Panorama + guess map per round
  * ------------------------------------------------------------------ */
 function panoUrls(folder) {
@@ -292,6 +419,7 @@ function startRound(msg) {
   state.mode = msg.mode || state.mode;
   state.allowMove = msg.allowMove !== false;
   state.teamMarkers = {};
+  setChatAvailable(state.mode === 'teamduel');
   if (msg.teams) state.roundTeams = msg.teams;
   updateHpBars(state.roundTeams);
   startRoundTimer(msg.deadline);
@@ -366,7 +494,10 @@ function stopRoundTimer() {
 }
 
 // A teammate locked in a guess: drop their pin on our map so we can coordinate.
-function showTeammateGuess(msg) {
+// Draw/update a teammate's live pin on our guess map. Called for both 'teampin'
+// (live placement/move) and the legacy 'teamguess' message. The pin appears the
+// moment they place it and persists even if they never press Guess.
+function upsertTeammateMarker(msg) {
   if (!state.map || !L) return;
   const ll = worldToLatLng(msg.x, msg.z);
   if (state.teamMarkers[msg.clientId]) state.map.removeLayer(state.teamMarkers[msg.clientId]);
@@ -374,6 +505,25 @@ function showTeammateGuess(msg) {
     radius: 6, color: '#fff', weight: 2, fillColor: '#e8b84a', fillOpacity: 0.9,
   }).addTo(state.map).bindTooltip(`${msg.name} (teammate)`, { direction: 'top' });
   state.teamMarkers[msg.clientId] = m;
+}
+
+// Mark a teammate's pin as locked once they've pressed Guess.
+function lockTeammateMarker(clientId) {
+  const m = state.teamMarkers[clientId];
+  if (!m) return;
+  m.setStyle({ fillColor: '#b07a16', fillOpacity: 1, color: '#fff' });
+  const tip = m.getTooltip();
+  if (tip) tip.setContent((tip.getContent() || '').replace('(teammate)', '(teammate · locked)'));
+}
+
+// Debounce live pin updates so rapid clicks/drags don't flood the server.
+let teampinTimer = null;
+function sendTeampinDebounced(x, z) {
+  if (teampinTimer) clearTimeout(teampinTimer);
+  teampinTimer = setTimeout(() => {
+    teampinTimer = null;
+    sendWS({ t: 'teampin', x, z });
+  }, 60);
 }
 
 /* ------------------------------------------------------------------ *
@@ -722,6 +872,9 @@ function buildGuessMap() {
     const w = latLngToWorld(e.latlng);
     $('guessBtn').disabled = false;
     $('guessBtn').textContent = `Guess (X ${Math.round(w.x)}, Z ${Math.round(w.z)})`;
+    // Team Duel: broadcast this pin live to teammates so they can see it the
+    // moment it's placed (and as it moves), even before we press Guess.
+    if (state.mode === 'teamduel') sendTeampinDebounced(w.x, w.z);
   });
   // Leaflet reads its container size on creation; if the game screen is still
   // animating in, it sizes to a short strip and only that strip's tiles load
@@ -810,10 +963,28 @@ function showRoundResult(msg) {
     dmgEl.classList.add('hidden');
   }
 
-  const last = msg.index + 1 >= msg.total;
-  $('nextBtn').classList.toggle('hidden', !state.isHost);
-  $('nextBtn').textContent = last ? 'See final scores' : 'Next round';
-  $('waitNext').classList.toggle('hidden', state.isHost);
+  // Knockout / win banner on the result map (sudden death ends the game here,
+  // not in a separate window). Replace Next round with a Back-to-lobby action.
+  const ko = $('knockoutBanner');
+  if (msg.finished && msg.winner) {
+    ko.textContent = msg.reason === 'death'
+      ? `🏆 ${msg.winner} wins by knockout!`
+      : `🏆 ${msg.winner} wins!`;
+    ko.classList.remove('hidden');
+    $('nextBtn').classList.add('hidden');
+    $('waitNext').classList.add('hidden');
+    const back = $('nextBtn');
+    back.classList.remove('hidden');
+    back.textContent = 'Back to lobby';
+    back.onclick = () => location.reload();
+  } else {
+    ko.classList.add('hidden');
+    const last = msg.index + 1 >= msg.total;
+    $('nextBtn').classList.toggle('hidden', !state.isHost);
+    $('nextBtn').textContent = last ? 'See final scores' : 'Next round';
+    $('nextBtn').onclick = () => sendWS({ t: 'next' });
+    $('waitNext').classList.toggle('hidden', state.isHost);
+  }
 }
 
 function showFinal(msg) {
@@ -822,6 +993,9 @@ function showFinal(msg) {
   const winner = msg && msg.winner;
   const reason = msg && msg.reason;
   const teams = msg && msg.teams;
+  // Sudden-death knockouts are shown as a banner on the result map (handled in
+  // showRoundResult), so don't pop a separate final window for those.
+  if (reason === 'death') return;
   $('finalOverlay').classList.remove('hidden');
   $('hpSelf').classList.add('hidden');
   $('hpOpp').classList.add('hidden');
@@ -879,22 +1053,43 @@ window.addEventListener('DOMContentLoaded', () => {
       .catch(() => { state.links = null; });
   }
 
-  // Show the Starting-HP field only for duel modes.
-  const syncModeFields = () => {
-    const duel = $('modeInput').value !== 'classic';
-    $('hpField').classList.toggle('hidden', !duel);
+  // --- Settings + gear popover ---
+  loadSettings();
+  $('settingsBtn').onclick = (e) => {
+    e.stopPropagation();
+    $('settingsPopover').classList.toggle('hidden');
   };
-  $('modeInput').onchange = syncModeFields;
-  syncModeFields();
+  document.addEventListener('click', (e) => {
+    const pop = $('settingsPopover');
+    if (pop.classList.contains('hidden')) return;
+    if (!pop.contains(e.target) && e.target !== $('settingsBtn')) pop.classList.add('hidden');
+  });
+  $('disableChatInput').onchange = () => {
+    state.settings.disableChat = $('disableChatInput').checked;
+    saveSettings();
+    setChatAvailable(state.mode === 'teamduel');
+  };
+
+  // --- Tabs (Create / Join / Browse) ---
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.onclick = () => {
+      for (const t2 of document.querySelectorAll('.tab')) t2.classList.remove('active');
+      tab.classList.add('active');
+      const which = tab.dataset.tab;
+      for (const p of document.querySelectorAll('.tab-pane')) {
+        p.classList.toggle('active', p.dataset.pane === which);
+      }
+      // Subscribe to the live public-rooms list only while Browse is open.
+      if (which === 'browse') sendWS({ t: 'browse' });
+      else sendWS({ t: 'browseclose' });
+    };
+  }
 
   $('createBtn').onclick = () => {
     const name = $('nameInput').value.trim() || 'Player';
-    const rounds = parseInt($('roundsInput').value, 10) || 5;
-    const mode = $('modeInput').value;
-    const hp = parseInt($('hpInput').value, 10) || 6000;
-    const roundTime = parseInt($('timeInput').value, 10) || 0;
-    const allowMove = $('moveInput').checked;
-    sendWS({ t: 'create', name, rounds, mode, hp, roundTime, allowMove });
+    // Options default on the server (classic, 5 rounds, no time, move on,
+    // private). The host edits them inside the room.
+    sendWS({ t: 'create', name });
   };
   $('joinBtn').onclick = () => {
     const name = $('nameInput').value.trim() || 'Player';
@@ -902,6 +1097,40 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!code) { $('lobbyError').textContent = 'Enter a room code.'; return; }
     sendWS({ t: 'join', code, name });
   };
+
+  // --- Room options panel: host edits broadcast via setoptions (debounced) ---
+  let optTimer = null;
+  function pushOptions() {
+    if (!state.isHost) return;
+    const opts = {
+      mode: $('optMode').value,
+      rounds: parseInt($('optRounds').value, 10) || 5,
+      roundTime: parseInt($('optTime').value, 10) || 0,
+      hp: parseInt($('optHp').value, 10) || 6000,
+      allowMove: $('optMove').checked,
+      isPublic: $('optPublic').checked,
+    };
+    sendWS({ t: 'setoptions', ...opts });
+  }
+  function optChanged() {
+    $('timeReadout').textContent = parseInt($('optTime').value, 10)
+      ? `${$('optTime').value}s` : 'No limit';
+    const duel = $('optMode').value !== 'classic';
+    $('optHpField').classList.toggle('hidden', !duel);
+    if (optTimer) clearTimeout(optTimer);
+    optTimer = setTimeout(pushOptions, 200);
+  }
+  for (const id of ['optMode', 'optRounds', 'optTime', 'optHp', 'optMove', 'optPublic']) {
+    const el = $(id);
+    if (el) el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', optChanged);
+  }
+
+  // Copy room code.
+  $('copyCodeBtn').onclick = () => {
+    const code = $('roomCode').textContent;
+    navigator.clipboard?.writeText(code).catch(() => {});
+  };
+
   $('startBtn').onclick = () => sendWS({ t: 'start' });
   $('guessBtn').onclick = submitGuess;
   $('nextBtn').onclick = () => sendWS({ t: 'next' });
@@ -918,12 +1147,35 @@ window.addEventListener('DOMContentLoaded', () => {
     if (state.startFolder) moveTo(state.startFolder);
   };
 
+  // --- Team chat wiring ---
+  $('chatTab').onclick = openChat;
+  $('chatInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sendChat(); }
+    else if (e.key === 'Escape') { e.preventDefault(); $('chatInput').blur(); closeChat(); }
+    e.stopPropagation();
+  });
+  $('chatInput').addEventListener('input', resetChatHideTimer);
+  $('teamChat').addEventListener('mousemove', resetChatHideTimer);
+
   // Arrow-key roaming (Street-View style). Direction is relative to where you're
   // currently looking: Up = walk toward what's ahead, Left/Right/Down likewise.
   // Capture phase + stopPropagation so Pannellum doesn't also pan the view on
   // the same key. Ignored while typing in a field or when the map has focus.
   const KEY_DEG = { ArrowUp: 0, ArrowRight: 90, ArrowDown: 180, ArrowLeft: -90 };
   window.addEventListener('keydown', (e) => {
+    // 'T' toggles team chat (only when not typing in some other field, and only
+    // in team duel with chat enabled). If the chat input is focused, let 't'
+    // type normally.
+    if (e.key === 't' || e.key === 'T') {
+      if (e.target === $('chatInput')) return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+      if (state.mode === 'teamduel' && !state.settings.disableChat) {
+        e.preventDefault();
+        if (state.chatOpen) closeChat(); else openChat();
+      }
+      return;
+    }
     if (!(e.target === document.body || $('panorama').contains(e.target))) {
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;

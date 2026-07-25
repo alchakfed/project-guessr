@@ -16,59 +16,89 @@
 <body>
   <!-- ===== Lobby ===== -->
   <div id="lobby" class="screen active">
-    <div class="card">
+    <div class="card lobby-card">
+      <button id="settingsBtn" class="icon-btn gear" title="Settings">⚙</button>
       <h1>ProjectGuessr</h1>
       <p class="subtitle">GeoGuessr, but in your own Minecraft world.</p>
+
+      <!-- Settings popover (gear) -->
+      <div id="settingsPopover" class="popover hidden">
+        <h3>Settings</h3>
+        <label class="check"><input id="disableChatInput" type="checkbox" /> Disable team chat</label>
+      </div>
 
       <label>Your name
         <input id="nameInput" type="text" maxlength="24" placeholder="Steve" />
       </label>
 
-      <div class="row">
-        <div class="col">
-          <h3>Create a game</h3>
-          <label>Mode
-            <select id="modeInput">
-              <option value="classic">Classic (highest score wins)</option>
-              <option value="duel">Duel (HP battle, 1v1+)</option>
-              <option value="teamduel">Team Duel (2 teams share HP)</option>
-            </select>
-          </label>
-          <label>Rounds
-            <input id="roundsInput" type="number" min="1" max="50" value="5" />
-          </label>
-          <label id="hpField" class="hidden">Starting HP
-            <input id="hpInput" type="number" min="100" max="100000" step="100" value="6000" />
-          </label>
-          <label>Round time limit
-            <select id="timeInput">
-              <option value="0">No limit</option>
-              <option value="30">30 seconds</option>
-              <option value="60">60 seconds</option>
-              <option value="120">120 seconds</option>
-            </select>
-          </label>
-          <label class="check"><input id="moveInput" type="checkbox" checked /> Allow moving / roaming</label>
-          <button id="createBtn">Create room</button>
-        </div>
-        <div class="col">
-          <h3>Join a game</h3>
-          <label>Room code
-            <input id="codeInput" type="text" maxlength="4" placeholder="ABCD" style="text-transform:uppercase" />
-          </label>
-          <button id="joinBtn">Join room</button>
-        </div>
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="create">Create</button>
+        <button class="tab" data-tab="join">Join</button>
+        <button class="tab" data-tab="browse">Browse</button>
       </div>
+
+      <!-- Create tab -->
+      <div class="tab-pane active" data-pane="create">
+        <p class="hint">Pick a name and create a room — you'll set the mode and options inside.</p>
+        <button id="createBtn" class="primary">Create room</button>
+      </div>
+
+      <!-- Join tab -->
+      <div class="tab-pane" data-pane="join">
+        <label>Room code
+          <input id="codeInput" type="text" maxlength="4" placeholder="ABCD" style="text-transform:uppercase" />
+        </label>
+        <button id="joinBtn" class="primary">Join room</button>
+      </div>
+
+      <!-- Browse tab -->
+      <div class="tab-pane" data-pane="browse">
+        <p class="hint">Public rooms anyone can join.</p>
+        <div id="browseList" class="browse-list"></div>
+      </div>
+
       <p id="lobbyError" class="error"></p>
     </div>
   </div>
 
   <!-- ===== Room (waiting) ===== -->
   <div id="room" class="screen">
-    <div class="card">
-      <h2>Room <span id="roomCode" class="code"></span></h2>
-      <p class="subtitle">Share the code with friends on your network.</p>
-      <p id="roomMode" class="room-mode"></p>
+    <div class="card room-card">
+      <div class="room-head">
+        <h2>Room <span id="roomCode" class="code"></span>
+          <button id="copyCodeBtn" class="icon-btn" title="Copy code">⧉</button>
+          <span id="publicBadge" class="badge hidden">PUBLIC</span>
+        </h2>
+        <p class="subtitle" id="roomSub">Share the code with friends on your network.</p>
+      </div>
+
+      <!-- Host-editable options (read-only for non-host) -->
+      <div class="options-panel">
+        <h3>Game options</h3>
+        <div class="opt-row">
+          <label>Mode
+            <select id="optMode">
+              <option value="classic">Classic</option>
+              <option value="duel">Duel</option>
+              <option value="teamduel">Team Duel</option>
+            </select>
+          </label>
+          <label>Rounds
+            <input id="optRounds" type="number" min="1" max="50" value="5" />
+          </label>
+        </div>
+        <label class="opt-slider">Round time <span id="timeReadout">No limit</span>
+          <input id="optTime" type="range" min="0" max="300" step="5" value="0" />
+        </label>
+        <div class="opt-row">
+          <label id="optHpField" class="hidden">Starting HP
+            <input id="optHp" type="number" min="100" max="100000" step="100" value="6000" />
+          </label>
+          <label class="check"><input id="optMove" type="checkbox" checked /> Allow moving</label>
+          <label class="check"><input id="optPublic" type="checkbox" /> Public lobby</label>
+        </div>
+      </div>
 
       <!-- Single roster (classic / duel) -->
       <ul id="playerList" class="players"></ul>
@@ -135,6 +165,13 @@
       <button id="guessBtn" disabled>Place a pin to guess</button>
     </div>
 
+    <!-- Team chat (teamduel only). T toggles; auto-hides on inactivity. -->
+    <div id="teamChat" class="chat-panel hidden">
+      <div id="chatLog" class="chat-log"></div>
+      <input id="chatInput" type="text" maxlength="200" placeholder="Team chat… (T to open, Esc to close)" />
+    </div>
+    <button id="chatTab" class="chat-tab hidden" title="Team chat (T)">💬 Team</button>
+
     <!-- Round result overlay -->
     <div id="resultOverlay" class="overlay hidden">
       <div class="card">
@@ -142,6 +179,8 @@
         <div id="resultMapWrap">
           <button id="expandResultMapBtn" class="map-expand-btn" title="Expand map">⛶</button>
           <div id="resultMiniMap"></div>
+          <!-- Knockout/win banner overlaid on the result map (sudden death). -->
+          <div id="knockoutBanner" class="ko-banner hidden"></div>
         </div>
         <table id="resultTable"></table>
         <div id="resultDamage" class="dmg-summary hidden"></div>
