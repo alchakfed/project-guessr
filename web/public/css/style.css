@@ -119,10 +119,30 @@ button:disabled { background: #444a55; color: #808690; cursor: not-allowed; }
   padding: 8px;
   transition: width 0.2s, height 0.2s;
 }
-#mapPanel:hover { width: 460px; }
+#mapPanel:not(.expanded):hover { width: 460px; }
 #map { width: 100%; height: 260px; border-radius: 6px; background: #111; }
-#mapPanel:hover #map { height: 360px; }
+#mapPanel:not(.expanded):hover #map { height: 360px; }
 #guessBtn { margin-top: 8px; }
+
+/* Button-toggled enlarged map: near-fullscreen so you can place pins precisely */
+#mapPanel.expanded {
+  width: min(80vw, 900px);
+  bottom: 16px; right: 16px; top: 16px;
+}
+#mapPanel.expanded #map { height: calc(100vh - 90px); }
+
+/* Shared expand button for both maps. z-index 800 sits above Leaflet's panes
+   (which climb to ~700 in the same stacking context), so it's never buried. */
+.map-expand-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 800;
+  width: 30px; height: 30px; padding: 0; margin: 0;
+  display: grid; place-items: center;
+  font-size: 16px; line-height: 1;
+  background: rgba(0,0,0,0.65);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); cursor: pointer;
+}
+.map-expand-btn:hover:not(:disabled) { background: var(--accent); color: #10230f; }
 
 /* Leaflet dark tweaks */
 .leaflet-container { background: #111; }
@@ -134,7 +154,11 @@ button:disabled { background: #444a55; color: #808690; cursor: not-allowed; }
   background: rgba(0,0,0,0.7);
   padding: 24px; overflow: auto;
 }
+#resultMapWrap { position: relative; }
 #resultMiniMap { width: 100%; height: 320px; border-radius: 8px; margin: 12px 0; background: #111; }
+/* Enlarged result map: grow the card wide and the map tall for precise reading */
+#resultMapWrap.expanded #resultMiniMap { height: min(70vh, 640px); }
+.overlay .card:has(#resultMapWrap.expanded) { max-width: min(92vw, 1100px); width: 100%; }
 
 table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }

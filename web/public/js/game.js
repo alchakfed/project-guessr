@@ -75,14 +75,18 @@ const DM = CFG.DYNMAP || {};
 function dynmapEnabled() { return !!DM.enabled; }
 
 function worldToLatLng(x, z) {
-  if (dynmapEnabled()) return L.latLng(z, x); // lng=X, lat=Z (see dynmapCRS)
+  // Dynmap transform is pixelY = -scale*lat, and getTileUrl inverts tile Y
+  // (fy = -coords.y) so the terrain renders north-up. The marker path never
+  // sees that inversion, so lat must be -Z (not +Z) to land on the SAME
+  // hemisphere as the tiles: +Z is south (down), matching Minecraft.
+  if (dynmapEnabled()) return L.latLng(-z, x); // lng=X, lat=-Z (see dynmapCRS)
   const m = state.mapMeta;
   const px = ((x - m.worldMinX) / (m.worldMaxX - m.worldMinX)) * m.imageWidth;
   const py = ((z - m.worldMinZ) / (m.worldMaxZ - m.worldMinZ)) * m.imageHeight;
   return L.latLng(-py, px);
 }
 function latLngToWorld(latlng) {
-  if (dynmapEnabled()) return { x: latlng.lng, z: latlng.lat };
+  if (dynmapEnabled()) return { x: latlng.lng, z: -latlng.lat }; // inverse of above
   const m = state.mapMeta;
   const px = latlng.lng;
   const py = -latlng.lat;
@@ -255,7 +259,8 @@ function loadPanorama(folder, { freshView = false } = {}) {
       sceneFadeDuration: 350, // crossfade between panoramas -> no black loader
       autoLoad: true,
       showControls: true,
-      hfov: view ? view.hfov : 100,
+      hfov: view ? view.hfov : 150,
+      maxHfov: 150,
     },
     scenes: { [folder]: sceneConfig(folder) },
   };
@@ -275,9 +280,12 @@ function loadPanorama(folder, { freshView = false } = {}) {
 function sceneConfig(folder) {
   const yawOffset = CFG.PANO_YAW_OFFSET || 0;
   const hotSpots = neighboursFor(folder).map((n) => ({
-    // Pannellum yaw: 0 = front face, positive clockwise. Our bearing is
-    // clockwise from +Z; the single offset aligns the two coordinate frames.
-    yaw: ((n.bearing + yawOffset + 180) % 360) - 180,
+    // Our bearing is degrees CLOCKWISE from +Z (atan2(dx, dz)); Pannellum yaw
+    // runs the opposite way, so the bearing must be NEGATED, not just rotated.
+    // Without the sign flip, left/right arrows land on the wrong side (you
+    // click "left" and move right). PANO_YAW_OFFSET only rotates and can never
+    // fix that mirror. The (+540 % 360 -180) wrap is negative-safe.
+    yaw: (((-n.bearing + yawOffset) % 360) + 540) % 360 - 180,
     pitch: -12,
     cssClass: 'pg-arrow',
     createTooltipFunc: makeArrow,
@@ -487,6 +495,7 @@ function showRoundResult(msg) {
 
   // Mini map showing the true location + each player's guess.
   if (state.resultMap) { state.resultMap.remove(); state.resultMap = null; }
+  $('resultMapWrap').classList.add('expanded'); // start expanded each round
   $('resultMiniMap').innerHTML = '';
   const map = makeWorldMap('resultMiniMap');
   state.resultMap = map;
@@ -574,6 +583,14 @@ window.addEventListener('DOMContentLoaded', () => {
   $('guessBtn').onclick = submitGuess;
   $('nextBtn').onclick = () => sendWS({ t: 'next' });
   $('playAgainBtn').onclick = () => location.reload();
+  $('expandMapBtn').onclick = () => {
+    $('mapPanel').classList.toggle('expanded');
+    if (state.map) state.map.invalidateSize();
+  };
+  $('expandResultMapBtn').onclick = () => {
+    $('resultMapWrap').classList.toggle('expanded');
+    if (state.resultMap) state.resultMap.invalidateSize();
+  };
   $('backToStartBtn').onclick = () => {
     if (state.startFolder) moveTo(state.startFolder);
   };

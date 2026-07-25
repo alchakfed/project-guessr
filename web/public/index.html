@@ -68,6 +68,7 @@
     </div>
 
     <div id="mapPanel">
+      <button id="expandMapBtn" class="map-expand-btn" title="Expand map">⛶</button>
       <div id="map"></div>
       <button id="guessBtn" disabled>Place a pin to guess</button>
     </div>
@@ -76,7 +77,10 @@
     <div id="resultOverlay" class="overlay hidden">
       <div class="card">
         <h2 id="resultTitle">Round result</h2>
-        <div id="resultMiniMap"></div>
+        <div id="resultMapWrap">
+          <button id="expandResultMapBtn" class="map-expand-btn" title="Expand map">⛶</button>
+          <div id="resultMiniMap"></div>
+        </div>
         <table id="resultTable"></table>
         <button id="nextBtn" class="hidden">Next round</button>
         <p id="waitNext" class="subtitle hidden">Waiting for the host…</p>

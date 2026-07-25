@@ -1,116 +1,404 @@
 {
   "generatedNote": "Navigation graph for ProjectGuessr movement arrows. Contains only relative bearings + distances between panoramas, never absolute world coordinates.",
   "bearingConvention": "degrees clockwise from +Z toward +X (atan2(dx, dz))",
-  "radius": 8,
+  "radius": 16,
   "links": {
-    "pano_000000": [
+    "pano_000074": [
       {
-        "to": "pano_000001",
-        "bearing": 184.6,
-        "dist": 5.26
+        "to": "pano_000075",
+        "bearing": 87.9,
+        "dist": 10
       }
     ],
-    "pano_000001": [
+    "pano_000075": [
       {
-        "to": "pano_000002",
-        "bearing": 184.7,
-        "dist": 5.05
+        "to": "pano_000074",
+        "bearing": 267.9,
+        "dist": 10
       },
       {
-        "to": "pano_000000",
-        "bearing": 4.6,
-        "dist": 5.26
+        "to": "pano_000076",
+        "bearing": 86.1,
+        "dist": 10.13
       }
     ],
-    "pano_000002": [
+    "pano_000076": [
       {
-        "to": "pano_000001",
-        "bearing": 4.7,
-        "dist": 5.05
+        "to": "pano_000075",
+        "bearing": 266.1,
+        "dist": 10.13
       },
       {
-        "to": "pano_000003",
-        "bearing": 184,
-        "dist": 5.05
+        "to": "pano_000077",
+        "bearing": 93.8,
+        "dist": 10.22
       }
     ],
-    "pano_000003": [
+    "pano_000077": [
       {
-        "to": "pano_000002",
-        "bearing": 4,
-        "dist": 5.05
+        "to": "pano_000078",
+        "bearing": 148.6,
+        "dist": 10.08
       },
       {
-        "to": "pano_000004",
-        "bearing": 183.1,
-        "dist": 5.06
+        "to": "pano_000076",
+        "bearing": 273.8,
+        "dist": 10.22
       }
     ],
-    "pano_000004": [
+    "pano_000078": [
       {
-        "to": "pano_000005",
-        "bearing": 181.7,
-        "dist": 5.04
+        "to": "pano_000079",
+        "bearing": 202.1,
+        "dist": 10.03
       },
       {
-        "to": "pano_000003",
-        "bearing": 3.1,
-        "dist": 5.06
+        "to": "pano_000077",
+        "bearing": 328.6,
+        "dist": 10.08
       }
     ],
-    "pano_000005": [
+    "pano_000079": [
       {
-        "to": "pano_000004",
-        "bearing": 1.7,
-        "dist": 5.04
+        "to": "pano_000078",
+        "bearing": 22.1,
+        "dist": 10.03
       },
       {
-        "to": "pano_000006",
-        "bearing": 181.8,
-        "dist": 5.05
+        "to": "pano_000080",
+        "bearing": 268,
+        "dist": 10.32
       }
     ],
-    "pano_000006": [
+    "pano_000080": [
       {
-        "to": "pano_000005",
-        "bearing": 1.8,
-        "dist": 5.05
+        "to": "pano_000081",
+        "bearing": 258.9,
+        "dist": 10.29
       },
       {
-        "to": "pano_000007",
-        "bearing": 181.7,
-        "dist": 5.05
+        "to": "pano_000079",
+        "bearing": 88,
+        "dist": 10.32
       }
     ],
-    "pano_000007": [
+    "pano_000081": [
       {
-        "to": "pano_000006",
-        "bearing": 1.7,
-        "dist": 5.05
+        "to": "pano_000080",
+        "bearing": 78.9,
+        "dist": 10.29
       },
       {
-        "to": "pano_000008",
-        "bearing": 181.7,
-        "dist": 5.05
+        "to": "pano_000082",
+        "bearing": 253.9,
+        "dist": 10.33
       }
     ],
-    "pano_000008": [
+    "pano_000082": [
       {
-        "to": "pano_000007",
-        "bearing": 1.7,
-        "dist": 5.05
+        "to": "pano_000083",
+        "bearing": 245.8,
+        "dist": 10.27
       },
       {
-        "to": "pano_000009",
-        "bearing": 181.7,
-        "dist": 5.05
+        "to": "pano_000081",
+        "bearing": 73.9,
+        "dist": 10.33
       }
     ],
-    "pano_000009": [
+    "pano_000083": [
       {
-        "to": "pano_000008",
-        "bearing": 1.7,
-        "dist": 5.05
+        "to": "pano_000082",
+        "bearing": 65.8,
+        "dist": 10.27
+      },
+      {
+        "to": "pano_000084",
+        "bearing": 232.8,
+        "dist": 10.32
+      }
+    ],
+    "pano_000084": [
+      {
+        "to": "pano_000085",
+        "bearing": 229.1,
+        "dist": 10.05
+      },
+      {
+        "to": "pano_000083",
+        "bearing": 52.8,
+        "dist": 10.32
+      }
+    ],
+    "pano_000085": [
+      {
+        "to": "pano_000084",
+        "bearing": 49.1,
+        "dist": 10.05
+      },
+      {
+        "to": "pano_000086",
+        "bearing": 224.9,
+        "dist": 10.34
+      }
+    ],
+    "pano_000086": [
+      {
+        "to": "pano_000087",
+        "bearing": 226.3,
+        "dist": 10.31
+      },
+      {
+        "to": "pano_000085",
+        "bearing": 44.9,
+        "dist": 10.34
+      }
+    ],
+    "pano_000087": [
+      {
+        "to": "pano_000088",
+        "bearing": 212.4,
+        "dist": 10.2
+      },
+      {
+        "to": "pano_000086",
+        "bearing": 46.3,
+        "dist": 10.31
+      }
+    ],
+    "pano_000088": [
+      {
+        "to": "pano_000087",
+        "bearing": 32.4,
+        "dist": 10.2
+      },
+      {
+        "to": "pano_000089",
+        "bearing": 204.1,
+        "dist": 10.32
+      }
+    ],
+    "pano_000089": [
+      {
+        "to": "pano_000088",
+        "bearing": 24.1,
+        "dist": 10.32
+      },
+      {
+        "to": "pano_000090",
+        "bearing": 204.2,
+        "dist": 10.34
+      }
+    ],
+    "pano_000090": [
+      {
+        "to": "pano_000091",
+        "bearing": 196.1,
+        "dist": 10.15
+      },
+      {
+        "to": "pano_000089",
+        "bearing": 24.2,
+        "dist": 10.34
+      }
+    ],
+    "pano_000091": [
+      {
+        "to": "pano_000092",
+        "bearing": 224.1,
+        "dist": 10.07
+      },
+      {
+        "to": "pano_000090",
+        "bearing": 16.1,
+        "dist": 10.15
+      }
+    ],
+    "pano_000092": [
+      {
+        "to": "pano_000091",
+        "bearing": 44.1,
+        "dist": 10.07
+      },
+      {
+        "to": "pano_000093",
+        "bearing": 237.7,
+        "dist": 10.29
+      }
+    ],
+    "pano_000093": [
+      {
+        "to": "pano_000094",
+        "bearing": 213.2,
+        "dist": 10.03
+      },
+      {
+        "to": "pano_000092",
+        "bearing": 57.7,
+        "dist": 10.29
+      }
+    ],
+    "pano_000094": [
+      {
+        "to": "pano_000093",
+        "bearing": 33.2,
+        "dist": 10.03
+      },
+      {
+        "to": "pano_000095",
+        "bearing": 184.4,
+        "dist": 10.05
+      }
+    ],
+    "pano_000095": [
+      {
+        "to": "pano_000094",
+        "bearing": 4.4,
+        "dist": 10.05
+      },
+      {
+        "to": "pano_000096",
+        "bearing": 216.7,
+        "dist": 10.15
+      }
+    ],
+    "pano_000096": [
+      {
+        "to": "pano_000095",
+        "bearing": 36.7,
+        "dist": 10.15
+      },
+      {
+        "to": "pano_000097",
+        "bearing": 254.5,
+        "dist": 10.31
+      }
+    ],
+    "pano_000097": [
+      {
+        "to": "pano_000096",
+        "bearing": 74.5,
+        "dist": 10.31
+      },
+      {
+        "to": "pano_000098",
+        "bearing": 258.6,
+        "dist": 10.32
+      }
+    ],
+    "pano_000098": [
+      {
+        "to": "pano_000099",
+        "bearing": 255,
+        "dist": 10.3
+      },
+      {
+        "to": "pano_000097",
+        "bearing": 78.6,
+        "dist": 10.32
+      }
+    ],
+    "pano_000099": [
+      {
+        "to": "pano_000100",
+        "bearing": 224.7,
+        "dist": 10.27
+      },
+      {
+        "to": "pano_000098",
+        "bearing": 75,
+        "dist": 10.3
+      }
+    ],
+    "pano_000100": [
+      {
+        "to": "pano_000099",
+        "bearing": 44.7,
+        "dist": 10.27
+      },
+      {
+        "to": "pano_000101",
+        "bearing": 194.8,
+        "dist": 10.31
+      }
+    ],
+    "pano_000101": [
+      {
+        "to": "pano_000102",
+        "bearing": 199.8,
+        "dist": 10.26
+      },
+      {
+        "to": "pano_000100",
+        "bearing": 14.8,
+        "dist": 10.31
+      }
+    ],
+    "pano_000102": [
+      {
+        "to": "pano_000101",
+        "bearing": 19.8,
+        "dist": 10.26
+      },
+      {
+        "to": "pano_000103",
+        "bearing": 247.3,
+        "dist": 10.38
+      }
+    ],
+    "pano_000103": [
+      {
+        "to": "pano_000104",
+        "bearing": 259.5,
+        "dist": 10.32
+      },
+      {
+        "to": "pano_000102",
+        "bearing": 67.3,
+        "dist": 10.38
+      }
+    ],
+    "pano_000104": [
+      {
+        "to": "pano_000103",
+        "bearing": 79.5,
+        "dist": 10.32
+      },
+      {
+        "to": "pano_000105",
+        "bearing": 234.4,
+        "dist": 10.39
+      }
+    ],
+    "pano_000105": [
+      {
+        "to": "pano_000106",
+        "bearing": 230,
+        "dist": 10.02
+      },
+      {
+        "to": "pano_000104",
+        "bearing": 54.4,
+        "dist": 10.39
+      }
+    ],
+    "pano_000106": [
+      {
+        "to": "pano_000105",
+        "bearing": 50,
+        "dist": 10.02
+      },
+      {
+        "to": "pano_000107",
+        "bearing": 237.3,
+        "dist": 10.05
+      }
+    ],
+    "pano_000107": [
+      {
+        "to": "pano_000106",
+        "bearing": 57.3,
+        "dist": 10.05
       }
     ]
   }
