@@ -39,6 +39,8 @@ const state = {
   isHost: false,
   mapMeta: null,
   players: [],
+  everConnected: false, // true once any socket has opened (gates mid-game drop handling)
+  retryTimer: null,     // pending initial-connection retry setTimeout
   pano: null,        // Pannellum viewer instance
   tourScenes: null,  // Set of scene ids registered on the current viewer
   map: null,         // Leaflet map (guess)
@@ -120,9 +122,14 @@ function connect() {
   const url = CFG.WS_URL || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
   const ws = new WebSocket(url);
   state.ws = ws;
+  // Tag this socket so onclose can tell an initial-connection retry from a
+  // mid-game drop (which should NOT auto-retry — that clobbers the Reconnect
+  // button's controlled socket and silently drops the reconnect message).
+  ws._initial = !state.everConnected;
 
   ws.onopen = () => {
     state.connected = true;
+    state.everConnected = true;
     state.retries = 0;
     if ($('lobbyError').textContent === 'Disconnected from server.' ||
         $('lobbyError').textContent.startsWith('Connecting')) {
@@ -132,16 +139,27 @@ function connect() {
   ws.onmessage = (ev) => handle(JSON.parse(ev.data));
   ws.onclose = () => {
     state.connected = false;
-    // Free hosting (e.g. Render) spins the server down when idle; the first
-    // connection can be refused while it wakes. Retry with backoff instead of
-    // giving up so the game becomes playable once the instance is warm.
-    const n = (state.retries = (state.retries || 0) + 1);
-    if (n <= 8) {
-      const wait = Math.min(1000 * n, 5000);
-      $('lobbyError').textContent = `Connecting to server… (waking up, attempt ${n})`;
-      setTimeout(connect, wait);
-    } else {
-      $('lobbyError').textContent = 'Disconnected from server. Refresh to retry.';
+    // Only auto-retry the INITIAL connection (e.g. waking a cold Render
+    // instance). Once we've been in a game/room and the socket drops, do NOT
+    // auto-retry — the Reconnect button handles rejoining, and a blind retry
+    // would open a contextless socket that clobbers state.ws and eats the
+    // reconnect message. Show a hint + the Reconnect button instead.
+    if (ws._initial && !state.everConnected) {
+      const n = (state.retries = (state.retries || 0) + 1);
+      if (n <= 8) {
+        const wait = Math.min(1000 * n, 5000);
+        $('lobbyError').textContent = `Connecting to server… (waking up, attempt ${n})`;
+        state.retryTimer = setTimeout(connect, wait);
+      } else {
+        $('lobbyError').textContent = 'Disconnected from server. Refresh to retry.';
+      }
+      return;
+    }
+    // Mid-game / mid-room drop: surface it and let the user Reconnect.
+    if (state.code) {
+      $('lobbyError').textContent = 'Connection lost — click Reconnect to rejoin.';
+      showReconnectButton();
+      showScreen('lobby');
     }
   };
   return ws;
@@ -163,6 +181,18 @@ function handle(msg) {
       // rejoin this exact slot (score/team/host preserved server-side).
       if (msg.reconnectKey) saveReconnect(msg.code, msg.reconnectKey);
       $('roomCode').textContent = msg.code;
+      // On reconnect, switch to the screen matching the game's current state.
+      // The server sends the full state replay (round / roundresult / lobby)
+      // right after this, which fills in the details — but we set the SCREEN
+      // here so there's no flash of "waiting for host" when rejoining mid-game.
+      if (msg.reconnected) {
+        if (msg.roomState === 'lobby') showScreen('room');
+        // playing / roundover / finished -> the game screen; the round or
+        // roundresult message populates it. (showRoundResult/startRound also
+        // call showScreen('game'), so this is belt-and-braces.)
+        else showScreen('game');
+        break;
+      }
       showScreen('room');
       break;
     case 'lobby': {
@@ -175,6 +205,12 @@ function handle(msg) {
       renderRoom(msg);
       $('startBtn').classList.toggle('hidden', !state.isHost);
       $('waitMsg').classList.toggle('hidden', state.isHost);
+      // The lobby message renders into the room/waiting screen. We don't call
+      // showScreen('room') here: on a fresh join the 'joined' handler already
+      // switched to it, and on a mid-game reconnect the server sends 'round' or
+      // 'roundresult' to govern our screen — switching here would yank us back
+      // to the waiting screen. The lobby-state reconnect path sends this AFTER
+      // 'joined' and expects us to already be on the room screen from 'joined'.
       break;
     }
     case 'round':
@@ -386,7 +422,27 @@ function hideReconnectButton() {
 function doReconnect() {
   const r = loadReconnect();
   if (!r) return;
-  sendWS({ t: 'reconnect', code: r.code, reconnectKey: r.key });
+  // Don't reuse a dead/half-open socket: sendWS silently drops on non-OPEN,
+  // which is exactly why a Reconnect click can do nothing. Open a fresh
+  // controlled socket and send the reconnect message once it's open.
+  if (state.retryTimer) { clearTimeout(state.retryTimer); state.retryTimer = null; }
+  if (state.ws) { try { state.ws.onclose = null; state.ws.close(); } catch (_) {} }
+  const url = CFG.WS_URL || (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+  const ws = new WebSocket(url);
+  state.ws = ws;
+  state.retries = 0;
+  $('lobbyError').textContent = 'Reconnecting…';
+  ws.onopen = () => {
+    state.connected = true;
+    state.everConnected = true;
+    ws.send(JSON.stringify({ t: 'reconnect', code: r.code, reconnectKey: r.key }));
+  };
+  ws.onmessage = (ev) => handle(JSON.parse(ev.data));
+  ws.onclose = () => {
+    state.connected = false;
+    $('lobbyError').textContent = 'Reconnect failed — the room may have expired. Try again.';
+    showReconnectButton();
+  };
 }
 
 // Whether the team chat UI should be available at all (teamduel only, and not

@@ -471,11 +471,25 @@ function reconnectRoom(ws, room, reconnectKey) {
     mapMeta,
     reconnectKey,
     reconnected: true,
+    roomState: room.state, // lobby | playing | roundover | finished
   });
-  broadcast(room, lobbyMsg(room));
-  // If a round is in progress, resend the round so they can keep guessing.
-  if (room.state === 'playing') sendRoundTo(room, slotId);
-  else if (room.state === 'roundover') send(ws, lastRoundResult(room));
+  // Update everyone ELSE's roster (so they see the player back online), but
+  // don't send the reconnecting player a generic 'lobby' — that would flip them
+  // to the waiting screen. Their screen is governed by the state replay below.
+  const lobbyPayload = lobbyMsg(room);
+  for (const [cid, p] of room.players) if (cid !== slotId && p.ws) send(p.ws, lobbyPayload);
+  // Send the reconnecting player the state they're landing in. During a round
+  // they also need the lobby roster (teams/options) for the in-game UI, so send
+  // it AFTER the round so it doesn't preempt the screen switch.
+  if (room.state === 'playing') {
+    sendRoundTo(room, slotId);
+    send(ws, lobbyPayload);
+  } else if (room.state === 'roundover') {
+    send(ws, lastRoundResult(room));
+  } else {
+    // Still in the lobby -> the lobby message is the right landing state.
+    send(ws, lobbyPayload);
+  }
 }
 
 function revealRound(room) {
