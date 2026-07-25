@@ -24,10 +24,12 @@ html, body {
 .screen.active { display: block; }
 
 /* ---- Lobby / room cards ---- */
+/* Top-align (not vertically center) so a taller tab pane only grows the card
+   downward and the top edge — where the eye is anchored — never shifts. */
 #lobby, #room {
   display: none;
-  place-items: center;
-  padding: 24px;
+  place-items: start center;
+  padding: 8vh 24px 24px;
   overflow: auto;
 }
 #lobby.active, #room.active { display: grid; }
@@ -499,7 +501,7 @@ input[type="range"]:disabled::-webkit-slider-thumb { background: #555; }
 #resultMapWrap { position: relative; }
 .ko-banner {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-  z-index: 30;
+  z-index: 1000;
   background: rgba(20, 22, 28, 0.92);
   border: 2px solid var(--accent);
   color: var(--accent);

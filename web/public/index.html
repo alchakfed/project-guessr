@@ -178,10 +178,11 @@
       <div class="card">
         <h2 id="resultTitle">Round result</h2>
         <div id="resultMapWrap">
+          <!-- Knockout/win banner sits ABOVE the map so it's never buried by
+               Leaflet's panes (which climb to z~700 in their own context). -->
+          <div id="knockoutBanner" class="ko-banner hidden"></div>
           <button id="expandResultMapBtn" class="map-expand-btn" title="Expand map">⛶</button>
           <div id="resultMiniMap"></div>
-          <!-- Knockout/win banner overlaid on the result map (sudden death). -->
-          <div id="knockoutBanner" class="ko-banner hidden"></div>
         </div>
         <table id="resultTable"></table>
         <div id="resultDamage" class="dmg-summary hidden"></div>

@@ -242,8 +242,8 @@ function renderRoom(msg) {
   // Public/private badge + subtitle.
   $('publicBadge').classList.toggle('hidden', !msg.isPublic);
   $('roomSub').textContent = msg.isPublic
-    ? 'Public — appears in the lobby browser. Code also works.'
-    : 'Private — share the code with friends on your network.';
+    ? 'Public - appears in the lobby browser. Code also works.'
+    : 'Private - share the code with friends on your network.';
 
   const teamMode = msg.mode === 'teamduel';
   $('teamCols').classList.toggle('hidden', !teamMode);
@@ -311,7 +311,7 @@ function renderTeams(players, hostId) {
 function renderBrowseList(rooms) {
   const el = $('browseList');
   if (!rooms || !rooms.length) {
-    el.innerHTML = '<p class="hint">No public rooms right now — create one and set it public!</p>';
+    el.innerHTML = '<p class="hint">No public rooms right now.</p>';
     return;
   }
   el.innerHTML = '';
@@ -529,7 +529,7 @@ function sendTeampinDebounced(x, z) {
 /* ------------------------------------------------------------------ *
  *  Panorama viewer + Street-View movement arrows
  *  ------------------------------------------------------------------
- *  The viewer is (re)built whenever we show a panorama — both at round start
+ *  The viewer is (re)built whenever we show a panorama - both at round start
  *  and each time the player roams to a neighbour. Arrows are Pannellum
  *  hotspots placed at the bearing to each neighbour (from links.json), pinned
  *  near the horizon. Clicking one loads that neighbour. Scoring is unaffected:
@@ -1044,8 +1044,8 @@ function showRoundResult(msg) {
   const ko = $('knockoutBanner');
   if (msg.finished && msg.winner) {
     ko.textContent = msg.reason === 'death'
-      ? `🏆 ${msg.winner} wins by knockout!`
-      : `🏆 ${msg.winner} wins!`;
+      ? `${msg.winner} wins by knockout!`
+      : `${msg.winner} wins!`;
     ko.classList.remove('hidden');
     $('nextBtn').classList.add('hidden');
     $('waitNext').classList.add('hidden');
