@@ -64,6 +64,18 @@ const app = express();
 // bearings only) and stays public for the movement arrows.
 app.get('/manifest.json', (_req, res) => res.status(404).end());
 
+// Public "all locations" endpoint: just the world X/Z of every panorama, for the
+// landing-page overview map (blue dots). Unlike manifest.json this carries NO
+// round ids/folders and no per-round metadata, so it can't be used as an answer
+// key mid-game — it only says "photos were taken at these spots".
+app.get('/locations.json', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  res.json({
+    count: manifest.rounds.length,
+    points: manifest.rounds.map((r) => ({ x: r.x, z: r.z })),
+  });
+});
+
 // --- Dynmap tile proxy + cache --------------------------------------------
 // The guess map streams tiles from a THIRD-PARTY live Dynmap (map.ccnetmc.com).
 // Hotlinking it directly means every player, every pan, and every zoom hits
@@ -167,6 +179,7 @@ function lobbyMsg(room) {
     players: playerList(room),
     hostId: room.hostId,
     mode: room.mode,
+    rounds: room.roundsPerGame,
     hp: room.startHp,
     roundTime: room.roundTime,
     allowMove: room.allowMove,
@@ -354,6 +367,24 @@ function handle(ws, msg) {
       const room = rooms.get(ws.roomCode);
       if (!room || ws.clientId !== room.hostId) return;
       if (room.setTeam(msg.clientId, msg.team)) broadcast(room, lobbyMsg(room));
+      break;
+    }
+    // Voluntary leave from the lobby (before the game starts). Removes the
+    // player for good (no reconnect slot kept) and tears the room down if empty.
+    case 'leave': {
+      const room = rooms.get(ws.roomCode);
+      if (!room) return;
+      const wasPublic = room.isPublic;
+      room.removePlayer(ws.clientId);
+      ws.roomCode = null;
+      send(ws, { t: 'left' });
+      if (room.isEmpty()) {
+        clearRoundTimer(room);
+        rooms.delete(room.code);
+      } else {
+        broadcast(room, lobbyMsg(room));
+      }
+      if (wasPublic) pushBrowseList();
       break;
     }
     case 'kick': {

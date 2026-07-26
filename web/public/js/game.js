@@ -47,6 +47,7 @@ const state = {
   guessMarker: null,
   guessLatLng: null, // current pending guess in Leaflet coords
   resultMap: null,   // Leaflet map on the result overlay
+  locationsMap: null, // Leaflet map on the "all photo locations" overview
   hasGuessed: false,
   links: null,       // navigation graph {folder: [{to, bearing, dist}]}
   startFolder: null, // where the round began — scoring is pinned here
@@ -247,6 +248,13 @@ function handle(msg) {
       $('lobbyError').textContent = 'You were removed from the room by the host.';
       showScreen('lobby');
       break;
+    case 'left':
+      // We voluntarily left the lobby: drop any saved session and go back.
+      clearReconnect();
+      state.isHost = false;
+      $('lobbyError').textContent = '';
+      showScreen('lobby');
+      break;
     case 'error':
       $('lobbyError').textContent = msg.message;
       break;
@@ -278,12 +286,14 @@ function renderRoom(msg) {
   $('timeReadout').textContent = msg.roundTime ? `${msg.roundTime}s` : 'No limit';
   const duel = msg.mode === 'duel' || msg.mode === 'teamduel';
   $('optHpField').classList.toggle('hidden', !duel);
+  // Duel modes run until a knockout — no fixed round count to configure.
+  $('optRoundsField').classList.toggle('hidden', duel);
 
   // Public/private badge + subtitle.
   $('publicBadge').classList.toggle('hidden', !msg.isPublic);
   $('roomSub').textContent = msg.isPublic
-    ? 'Public - appears in the lobby browser. Code also works.'
-    : 'Private - share the code with friends on your network.';
+    ? 'Public - appears in the lobby browser. Join code also works.'
+    : 'Private - share the join code with friends.';
 
   const teamMode = msg.mode === 'teamduel';
   $('teamCols').classList.toggle('hidden', !teamMode);
@@ -521,7 +531,12 @@ function startRound(msg) {
   showScreen('game');
   $('resultOverlay').classList.add('hidden');
   $('finalOverlay').classList.add('hidden');
-  $('roundInfo').textContent = `Round ${msg.index + 1} / ${msg.total}`;
+  // Duel modes have no fixed round count (they end on a knockout), so just show
+  // the current round number instead of "X / total".
+  const duel = (msg.mode || state.mode) !== 'classic';
+  $('roundInfo').textContent = duel
+    ? `Round ${msg.index + 1}`
+    : `Round ${msg.index + 1} / ${msg.total}`;
   $('guessStatus').textContent = '';
   state.hasGuessed = false;
   state.guessLatLng = null;
@@ -1039,7 +1054,7 @@ function buildGuessMap() {
 }
 
 function recalcMapSize(map, elementId) {
-  const bump = () => { if (state.map === map || state.resultMap === map) map.invalidateSize(); };
+  const bump = () => { if (state.map === map || state.resultMap === map || state.locationsMap === map) map.invalidateSize(); };
   for (const t of [0, 50, 200, 500]) setTimeout(bump, t);
   if (window.ResizeObserver) {
     const el = $(elementId);
@@ -1056,6 +1071,73 @@ function submitGuess() {
   state.hasGuessed = true;
   $('guessBtn').disabled = true;
   $('guessBtn').textContent = 'Guess locked in';
+}
+
+/* ------------------------------------------------------------------ *
+ *  "All photo locations" overview (landing page)
+ *  ------------------------------------------------------------------
+ *  Opens a modal with the same world map used in-game and drops a blue dot
+ *  on every panorama capture spot (fetched from the public /locations.json).
+ *  This reveals where photos exist, NOT which round is which, so it can't be
+ *  used as an answer key during play.
+ * ------------------------------------------------------------------ */
+let locationsPoints = null; // cached [{x, z}, ...]
+
+async function loadLocations() {
+  if (locationsPoints) return locationsPoints;
+  const r = await fetch('/locations.json');
+  if (!r.ok) throw new Error('locations unavailable');
+  const data = await r.json();
+  locationsPoints = Array.isArray(data.points) ? data.points : [];
+  return locationsPoints;
+}
+
+async function openLocationsOverlay() {
+  const overlay = $('locationsOverlay');
+  overlay.classList.remove('hidden');
+  const countEl = $('locationsCount');
+
+  // The world map needs mapMeta for the static-map path; the Dynmap path does
+  // not. If we're not on Dynmap and haven't received mapMeta yet, fetch it.
+  if (!dynmapEnabled() && !state.mapMeta) {
+    try { state.mapMeta = await (await fetch('/map/map-meta.json')).json(); }
+    catch { /* map will just fail to render; count still shows */ }
+  }
+
+  let points;
+  try {
+    points = await loadLocations();
+  } catch {
+    countEl.textContent = 'Could not load locations.';
+    return;
+  }
+  countEl.textContent = `${points.length} photo${points.length === 1 ? '' : 's'} captured across the map`;
+
+  if (state.locationsMap) { state.locationsMap.remove(); state.locationsMap = null; }
+  $('locationsMap').innerHTML = '';
+  const map = makeWorldMap('locationsMap');
+  state.locationsMap = map;
+
+  const lls = [];
+  for (const p of points) {
+    const ll = worldToLatLng(p.x, p.z);
+    lls.push(ll);
+    L.circleMarker(ll, {
+      radius: 5, color: '#fff', weight: 1.5,
+      fillColor: '#4a90d9', fillOpacity: 0.95, className: 'loc-dot',
+    }).addTo(map);
+  }
+  recalcMapSize(map, 'locationsMap');
+  // Frame all the dots once the container has a real size.
+  if (lls.length) {
+    const bounds = L.latLngBounds(lls);
+    setTimeout(() => map.fitBounds(bounds.pad(0.25)), 60);
+  }
+}
+
+function closeLocationsOverlay() {
+  $('locationsOverlay').classList.add('hidden');
+  if (state.locationsMap) { state.locationsMap.remove(); state.locationsMap = null; }
 }
 
 /* ------------------------------------------------------------------ *
@@ -1328,6 +1410,19 @@ window.addEventListener('DOMContentLoaded', () => {
   $('reconnectBtn').onclick = doReconnect;
   showReconnectButton(); // in case we land on the lobby with a saved session
 
+  // --- "View all photo locations" overview ---
+  $('viewLocationsBtn').onclick = openLocationsOverlay;
+  $('closeLocationsBtn').onclick = closeLocationsOverlay;
+  $('locationsOverlay').addEventListener('click', (e) => {
+    // Click on the dimmed backdrop (not the card) closes it.
+    if (e.target === $('locationsOverlay')) closeLocationsOverlay();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('locationsOverlay').classList.contains('hidden')) {
+      closeLocationsOverlay();
+    }
+  });
+
   // --- Room options panel: host edits broadcast via setoptions (debounced) ---
   let optTimer = null;
   function pushOptions() {
@@ -1347,6 +1442,7 @@ window.addEventListener('DOMContentLoaded', () => {
       ? `${$('optTime').value}s` : 'No limit';
     const duel = $('optMode').value !== 'classic';
     $('optHpField').classList.toggle('hidden', !duel);
+    $('optRoundsField').classList.toggle('hidden', duel);
     if (optTimer) clearTimeout(optTimer);
     optTimer = setTimeout(pushOptions, 200);
   }
@@ -1362,6 +1458,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   $('startBtn').onclick = () => sendWS({ t: 'start' });
+  $('leaveBtn').onclick = () => sendWS({ t: 'leave' });
   $('guessBtn').onclick = submitGuess;
   $('nextBtn').onclick = () => sendWS({ t: 'next' });
   $('playAgainBtn').onclick = () => location.reload();

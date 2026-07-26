@@ -1,13 +1,16 @@
 :root {
-  --bg: #1a1c22;
-  --panel: #24272f;
-  --panel-2: #2d313b;
+  --bg: #14161c;
+  --panel: #22262f;
+  --panel-2: #2a2f3a;
   --accent: #55c157;
   --accent-2: #3a9d3c;
+  --blue: #4a90d9;
   --text: #e8eaed;
   --muted: #9aa0aa;
   --error: #ff6b6b;
-  --border: #3a3f4b;
+  --border: #363c48;
+  --radius: 16px;
+  --shadow: 0 20px 60px rgba(0,0,0,0.45);
 }
 
 * { box-sizing: border-box; }
@@ -18,6 +21,16 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+/* A single flat, subtle tonal wash keeps the dark UI from being one uniform
+   slab without any glow. */
+body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.02), transparent 40%),
+    var(--bg);
 }
 
 .screen { display: none; height: 100vh; width: 100vw; }
@@ -35,28 +48,57 @@ html, body {
 #lobby.active, #room.active { display: grid; }
 
 .card {
-  background: var(--panel);
+  background: linear-gradient(180deg, var(--panel), color-mix(in srgb, var(--panel) 88%, #000));
   border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 28px 32px;
+  border-radius: var(--radius);
+  padding: 30px 34px;
   width: min(680px, 92vw);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow);
 }
 
-h1 { margin: 0 0 4px; font-size: 34px; }
+h1 {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  background: linear-gradient(90deg, var(--text), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 h2 { margin: 0 0 8px; }
+
+/* Landing hero: globe mark next to the wordmark. */
+.brand { display: flex; align-items: center; gap: 16px; margin-bottom: 6px; }
+.brand-text { display: flex; flex-direction: column; gap: 2px; }
+.brand-text .subtitle { margin: 0; }
+.brand-mark {
+  flex: none;
+  width: 58px; height: 58px;
+  display: grid; place-items: center;
+  font-size: 30px; line-height: 1;
+  background: radial-gradient(circle at 30% 25%, rgba(85,193,87,0.35), var(--panel-2));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 6px 18px rgba(0,0,0,0.35);
+}
 h3 { margin: 0 0 12px; color: var(--muted); font-weight: 600; }
 .subtitle { color: var(--muted); margin-top: 4px; }
 
 label { display: block; margin: 14px 0 4px; font-size: 14px; color: var(--muted); }
-input {
+input, select {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 13px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text);
   font-size: 15px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .row { display: flex; gap: 24px; margin-top: 18px; }
@@ -65,18 +107,19 @@ input {
 button {
   margin-top: 16px;
   width: 100%;
-  padding: 11px 16px;
-  background: var(--accent);
-  color: #10230f;
+  padding: 12px 16px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  color: #0d1f0c;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: transform 0.08s ease, box-shadow 0.15s, filter 0.15s;
 }
-button:hover:not(:disabled) { background: var(--accent-2); }
-button:disabled { background: #444a55; color: #808690; cursor: not-allowed; }
+button:hover:not(:disabled) { filter: brightness(1.06); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { background: #3a3f4b; color: #808690; cursor: not-allowed; }
 
 .code {
   font-family: ui-monospace, monospace;
@@ -177,6 +220,43 @@ button:disabled { background: #444a55; color: #808690; cursor: not-allowed; }
 /* Enlarged result map: grow the card wide and the map tall for precise reading */
 #resultMapWrap.expanded #resultMiniMap { height: min(70vh, 640px); }
 .overlay .card:has(#resultMapWrap.expanded) { max-width: min(92vw, 1100px); width: 100%; }
+
+/* ---- Ghost / secondary button (e.g. "View all locations") ---- */
+.ghost-btn {
+  width: 100%; margin-top: 14px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 14px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  font-size: 14px; font-weight: 700; box-shadow: none;
+  transition: border-color 0.15s, background 0.15s, transform 0.08s;
+}
+.ghost-btn:hover:not(:disabled) {
+  background: var(--panel-2); border-color: var(--blue); filter: none;
+}
+.ghost-btn.danger { color: var(--error); }
+.ghost-btn.danger:hover:not(:disabled) { border-color: var(--error); background: rgba(255,107,107,0.08); }
+.dot-ico {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--blue); border: 2px solid #fff;
+}
+
+/* ---- All-locations overview modal ---- */
+#locationsOverlay { position: fixed; z-index: 60; }
+.locations-card { width: min(960px, 94vw); }
+.locations-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+}
+.locations-head .subtitle { margin-top: 2px; }
+.locations-head .icon-btn { position: static; }
+#locationsMap {
+  width: 100%; height: min(66vh, 620px);
+  margin-top: 16px;
+  border-radius: 12px; overflow: hidden;
+  background: #111; border: 1px solid var(--border);
+}
+/* Blue location dots on the overview map. */
+.loc-dot { filter: drop-shadow(0 0 3px rgba(74,144,217,0.6)); }
 
 table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
@@ -304,12 +384,45 @@ select {
   color: var(--text);
   font-size: 15px;
 }
-/* Inline checkbox row (Allow moving). */
+/* Inline checkbox row (Allow moving / Public lobby). Custom control so it
+   matches the theme and never reflows the panel when toggled. */
 label.check {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 10px;
   color: var(--text); margin: 14px 0 4px;
+  cursor: pointer; user-select: none;
 }
-label.check input { width: auto; }
+label.check input[type="checkbox"] {
+  -webkit-appearance: none; appearance: none;
+  flex: 0 0 auto;
+  width: 20px; height: 20px; margin: 0; padding: 0;
+  background: var(--panel);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  display: grid; place-content: center;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+label.check input[type="checkbox"]::before {
+  content: "";
+  width: 10px; height: 10px;
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform 0.12s ease;
+  /* A crisp checkmark drawn with a clip-path tick. */
+  background: #0d1f0c;
+  clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 22%, 84% 8%, 38% 66%);
+}
+label.check input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+label.check input[type="checkbox"]:checked::before { transform: scale(1); }
+label.check input[type="checkbox"]:focus-visible {
+  border-color: var(--accent);
+}
+label.check input[type="checkbox"]:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
 
 /* ---- Room: mode summary + team columns ---- */
 .room-mode {
@@ -411,17 +524,19 @@ label.check input { width: auto; }
 .popover h3 { margin: 0 0 8px; color: var(--text); }
 
 /* Tabs. */
-.tabs { display: flex; gap: 4px; margin: 18px 0 14px; background: var(--panel-2); border-radius: 10px; padding: 4px; }
+.tabs { display: flex; gap: 4px; margin: 22px 0 16px; background: var(--panel-2); border-radius: 12px; padding: 5px; border: 1px solid var(--border); }
 .tab {
-  flex: 1; margin: 0; padding: 9px 10px;
+  flex: 1; margin: 0; padding: 10px 10px;
   background: transparent; color: var(--muted);
-  border: none; border-radius: 7px; font-size: 14px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 9px; font-size: 14px; font-weight: 700; cursor: pointer;
+  box-shadow: none;
   transition: background 0.15s, color 0.15s;
 }
-.tab:hover:not(.active) { color: var(--text); }
-.tab.active { background: var(--accent); color: #10230f; }
+.tab:hover:not(.active) { color: var(--text); filter: none; }
+.tab.active { background: linear-gradient(180deg, var(--accent), var(--accent-2)); color: #0d1f0c; }
 .tab-pane { display: none; }
-.tab-pane.active { display: block; }
+.tab-pane.active { display: block; animation: fade-in 0.2s ease; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 button.primary { margin-top: 6px; }
 

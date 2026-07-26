@@ -264,7 +264,10 @@ export class Room {
   }
 
   startGame(seed) {
-    this.rounds = pickRounds(this.allRounds, this.roundsPerGame, seed);
+    // Duel modes have no fixed round count — they run until someone dies, so
+    // draw from the entire pool of locations. Classic uses the host's setting.
+    const count = this.isDuel() ? this.allRounds.length : this.roundsPerGame;
+    this.rounds = pickRounds(this.allRounds, count, seed);
     this.roundIndex = -1;
     this.winner = null;
     this.endReason = null;

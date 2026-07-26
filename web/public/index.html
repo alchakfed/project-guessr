@@ -18,8 +18,13 @@
   <div id="lobby" class="screen active">
     <div class="card lobby-card">
       <button id="settingsBtn" class="icon-btn gear" title="Settings">⚙</button>
-      <h1>CCGuessr</h1>
-      <p class="subtitle">GeoGuessr, but for CCNet.</p>
+      <div class="brand">
+        <div class="brand-mark">🌍</div>
+        <div class="brand-text">
+          <h1>CCGuessr</h1>
+          <p class="subtitle">GeoGuessr, but for CCNet.</p>
+        </div>
+      </div>
 
       <!-- Settings popover (gear) -->
       <div id="settingsPopover" class="popover hidden">
@@ -60,6 +65,23 @@
 
       <p id="lobbyError" class="error"></p>
       <button id="reconnectBtn" class="reconnect-btn hidden"></button>
+      <button id="viewLocationsBtn" class="ghost-btn">
+        <span class="dot-ico"></span> View all photo locations
+      </button>
+    </div>
+
+    <!-- All-locations overview (blue dots for every captured panorama) -->
+    <div id="locationsOverlay" class="overlay hidden">
+      <div class="card locations-card">
+        <div class="locations-head">
+          <div>
+            <h2>Photo locations</h2>
+            <p class="subtitle" id="locationsCount">Loading…</p>
+          </div>
+          <button id="closeLocationsBtn" class="icon-btn" title="Close">✕</button>
+        </div>
+        <div id="locationsMap"></div>
+      </div>
     </div>
   </div>
 
@@ -85,7 +107,7 @@
               <option value="teamduel">Team Duel</option>
             </select>
           </label>
-          <label>Rounds
+          <label id="optRoundsField">Rounds
             <input id="optRounds" type="number" min="1" max="50" value="5" />
           </label>
         </div>
@@ -118,6 +140,7 @@
 
       <button id="startBtn" class="hidden">Start game</button>
       <p id="waitMsg" class="subtitle">Waiting for the host to start…</p>
+      <button id="leaveBtn" class="ghost-btn danger">Leave lobby</button>
     </div>
   </div>
 
