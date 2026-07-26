@@ -818,9 +818,25 @@ function ensureScene(folder) {
 function moveTo(folder) {
   if (!state.pano) { loadPanorama(folder); return; }
   ensureScene(folder);
+  const from = state.currentFolder;
   state.currentFolder = folder;
-  // 'same' keeps the current pitch/yaw/hfov across the transition.
-  state.pano.loadScene(folder, 'same', 'same', 'same');
+  // Keep the player facing the SAME WORLD DIRECTION across the step (like walking
+  // forward in Street View), not the same on-screen yaw. Each panorama has its own
+  // captured front-face heading, so "screen yaw 0" points a different way in each.
+  // northScreenYawFor gives where world-north sits on a scene (from public link
+  // bearings), so shifting the yaw by the difference between the two scenes' norths
+  // holds the world heading fixed. Pitch/hfov carry over unchanged ('same'); pitch
+  // is already world-absolute since panoramas aren't tilted. Falls back to 'same'
+  // yaw when either scene lacks bearing data to know its north.
+  let targetYaw = 'same';
+  const nFrom = northScreenYawFor(from);
+  const nTo = northScreenYawFor(folder);
+  if (nFrom != null && nTo != null) {
+    let y = state.pano.getYaw() + (nTo - nFrom);
+    y = ((y % 360) + 540) % 360 - 180; // normalise to [-180, 180)
+    targetYaw = y;
+  }
+  state.pano.loadScene(folder, 'same', targetYaw, 'same');
   onSceneShown(folder);
 }
 
@@ -1122,10 +1138,17 @@ async function openLocationsOverlay() {
   for (const p of points) {
     const ll = worldToLatLng(p.x, p.z);
     lls.push(ll);
-    L.circleMarker(ll, {
+    const dot = L.circleMarker(ll, {
       radius: 5, color: '#fff', weight: 1.5,
       fillColor: '#4a90d9', fillOpacity: 0.95, className: 'loc-dot',
     }).addTo(map);
+    // Click a dot to see which panorama it is (folder id + world coords).
+    if (p.folder) {
+      dot.bindPopup(
+        `<b>${p.folder}</b><br>x ${Math.round(p.x)}, z ${Math.round(p.z)}`,
+        { className: 'loc-popup' },
+      );
+    }
   }
   recalcMapSize(map, 'locationsMap');
   // Frame all the dots once the container has a real size.

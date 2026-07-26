@@ -1874,6 +1874,12 @@
         "bearing": 24.5,
         "arrowYaw": 53.9,
         "dist": 15.36
+      },
+      {
+        "to": "pano_1163;-5747",
+        "bearing": 93.6,
+        "arrowYaw": 344.8,
+        "dist": 28.84
       }
     ],
     "pano_1141;-5731": [
@@ -1888,6 +1894,12 @@
         "bearing": 358.8,
         "arrowYaw": 0.3,
         "dist": 15.37
+      },
+      {
+        "to": "pano_1163;-5747",
+        "bearing": 125.2,
+        "arrowYaw": 234,
+        "dist": 27.41
       }
     ],
     "pano_1140;-5716": [
@@ -1958,6 +1970,18 @@
         "bearing": 93.2,
         "arrowYaw": 2.4,
         "dist": 15.25
+      },
+      {
+        "to": "pano_1141;-5731",
+        "bearing": 305.2,
+        "arrowYaw": 150.5,
+        "dist": 27.41
+      },
+      {
+        "to": "pano_1134;-5745",
+        "bearing": 273.6,
+        "arrowYaw": 182.1,
+        "dist": 28.84
       }
     ],
     "pano_1178;-5748": [
@@ -5626,6 +5650,18 @@
         "bearing": 34.8,
         "arrowYaw": 211.8,
         "dist": 15.13
+      },
+      {
+        "to": "pano_1924;-5327",
+        "bearing": 97.3,
+        "arrowYaw": 149.3,
+        "dist": 26.24
+      },
+      {
+        "to": "pano_1909;-5349",
+        "bearing": 156.1,
+        "arrowYaw": 90.5,
+        "dist": 27.48
       }
     ],
     "pano_1883;-5327": [
@@ -5668,6 +5704,18 @@
         "bearing": 312.2,
         "arrowYaw": 99.7,
         "dist": 23.46
+      },
+      {
+        "to": "pano_1898;-5324",
+        "bearing": 277.3,
+        "arrowYaw": 134.6,
+        "dist": 26.24
+      },
+      {
+        "to": "pano_1909;-5349",
+        "bearing": 214.4,
+        "arrowYaw": 197.5,
+        "dist": 26.41
       }
     ],
     "pano_1939;-5326": [
@@ -6098,6 +6146,12 @@
         "bearing": 16.3,
         "arrowYaw": 204.5,
         "dist": 15.21
+      },
+      {
+        "to": "pano_2033;-5331",
+        "bearing": 111.5,
+        "arrowYaw": 109.3,
+        "dist": 30.17
       }
     ],
     "pano_1991;-5326": [
@@ -8020,6 +8074,12 @@
         "bearing": 88.6,
         "arrowYaw": 180,
         "dist": 15.17
+      },
+      {
+        "to": "pano_2005;-5320",
+        "bearing": 291.5,
+        "arrowYaw": 337.1,
+        "dist": 30.17
       }
     ],
     "pano_1909;-5349": [
@@ -8028,6 +8088,18 @@
         "bearing": 169.3,
         "arrowYaw": 19.3,
         "dist": 15.34
+      },
+      {
+        "to": "pano_1924;-5327",
+        "bearing": 34.4,
+        "arrowYaw": 154.2,
+        "dist": 26.41
+      },
+      {
+        "to": "pano_1898;-5324",
+        "bearing": 336.1,
+        "arrowYaw": 212.5,
+        "dist": 27.48
       }
     ],
     "pano_1912;-5364": [
@@ -10744,6 +10816,12 @@
         "bearing": 8.5,
         "arrowYaw": 5.7,
         "dist": 15.26
+      },
+      {
+        "to": "pano_2299;-5553",
+        "bearing": 119,
+        "arrowYaw": 255.1,
+        "dist": 24.95
       }
     ],
     "pano_2280;-5526": [
@@ -12236,6 +12314,12 @@
         "bearing": 204.5,
         "arrowYaw": 20.5,
         "dist": 15.19
+      },
+      {
+        "to": "pano_2277;-5541",
+        "bearing": 299,
+        "arrowYaw": 286,
+        "dist": 24.95
       }
     ],
     "pano_2293;-5567": [

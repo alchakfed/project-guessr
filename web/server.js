@@ -64,15 +64,19 @@ const app = express();
 // bearings only) and stays public for the movement arrows.
 app.get('/manifest.json', (_req, res) => res.status(404).end());
 
-// Public "all locations" endpoint: just the world X/Z of every panorama, for the
-// landing-page overview map (blue dots). Unlike manifest.json this carries NO
-// round ids/folders and no per-round metadata, so it can't be used as an answer
-// key mid-game — it only says "photos were taken at these spots".
+// Public "all locations" endpoint: the world X/Z of every panorama plus its
+// folder id, for the landing-page overview map (blue dots you can click to see
+// which panorama they are). NOTE: this pairs coords with folder ids. Because the
+// folder ids in this project already encode the coordinates (e.g. pano_1469;-5913)
+// AND the per-round message already sends the current folder to the client, this
+// exposes nothing the client couldn't already derive. If you switch to opaque
+// folder ids and want the mid-game no-answer-key guarantee back, drop `folder`
+// here (the overview would then show anonymous dots).
 app.get('/locations.json', (_req, res) => {
   res.set('Cache-Control', 'public, max-age=300');
   res.json({
     count: manifest.rounds.length,
-    points: manifest.rounds.map((r) => ({ x: r.x, z: r.z })),
+    points: manifest.rounds.map((r) => ({ x: r.x, z: r.z, folder: r.folder || r.id })),
   });
 });
 

@@ -256,7 +256,16 @@ button:disabled { background: #3a3f4b; color: #808690; cursor: not-allowed; }
   background: #111; border: 1px solid var(--border);
 }
 /* Blue location dots on the overview map. */
-.loc-dot { filter: drop-shadow(0 0 3px rgba(74,144,217,0.6)); }
+.loc-dot { filter: drop-shadow(0 0 3px rgba(74,144,217,0.6)); cursor: pointer; }
+/* Dark-themed popup for the "which panorama is this" dot label. */
+.loc-popup .leaflet-popup-content-wrapper {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.loc-popup .leaflet-popup-content { margin: 8px 12px; font-size: 13px; line-height: 1.5; }
+.loc-popup .leaflet-popup-content b { font-family: ui-monospace, monospace; color: var(--blue); }
+.loc-popup .leaflet-popup-tip { background: var(--panel); border: 1px solid var(--border); }
+.loc-popup a.leaflet-popup-close-button { color: var(--muted); }
 
 table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
