@@ -8,9 +8,11 @@
 window.PG_CONFIG = {
   // e.g. 'ws://192.168.1.50:3000' — empty string = same origin as this page.
   WS_URL: '',
-  // Base path for panorama images. Set to '/panoramas' when using B2 proxy
-  // (server fetches with credentials). Or point directly at B2 if you make
-  // the bucket public (no credentials needed).
+  // Base path for panorama images.
+  // Leave as '/panoramas' — this server serves them, either from local disk or
+  // (when B2_KEY_ID/B2_KEY/B2_BUCKET are set) by signed-redirecting to a PRIVATE
+  // Backblaze B2 bucket. Do NOT hardcode the B2 /file/ URL here: a private bucket
+  // rejects unauthenticated browser reads with 401, and a public one would leak.
   PANO_BASE_URL: '/panoramas',
   MAP_IMAGE_URL: '/map/map.png',
   // File extension of the panorama faces. Set to 'webp' (or 'jpg') after running

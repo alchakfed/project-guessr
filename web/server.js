@@ -32,22 +32,91 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Backblaze B2 panorama hosting (optional)
-// Set these in Render/env to serve panoramas from B2 instead of local disk.
-// If not set, falls back to local ./public/panoramas/
+// Backblaze B2 panorama hosting (optional, PRIVATE bucket)
+// Set these in Render/env to serve panoramas from a private B2 bucket instead of
+// local disk. If B2_KEY_ID/B2_KEY/B2_BUCKET are unset, falls back to ./public/panoramas/.
+//
+// Because the bucket is PRIVATE, the browser can't read the public /file/ URL
+// directly (B2 returns 401 "unauthorized"). Instead the server mints a short-lived
+// download token (b2_get_download_authorization, scoped to the panoramas/ prefix)
+// and 302-redirects each /panoramas/* request to B2 with ?Authorization=<token>.
+// The image bytes still stream B2 -> browser directly (no bandwidth through here);
+// only the tiny token-minting call runs on the server, and it's cached + reused.
 const B2_KEY_ID = process.env.B2_KEY_ID;
 const B2_KEY = process.env.B2_KEY;
-const B2_BUCKET = process.env.B2_BUCKET;
-const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
-const B2_ENDPOINT = process.env.B2_ENDPOINT;
-const B2_DOWNLOAD_URL = process.env.B2_DOWNLOAD_URL; // e.g. https://f001.backblazeb2.com/file/mybucket
+const B2_BUCKET = process.env.B2_BUCKET;                 // bucket NAME, e.g. ccguessr-db
+const B2_BUCKET_ID = process.env.B2_BUCKET_ID;           // optional; auto-discovered from auth if omitted
 
-let b2DownloadUrl = null;
-if (B2_DOWNLOAD_URL) {
-  b2DownloadUrl = B2_DOWNLOAD_URL.replace(/\/$/, '');
-  console.log(`[server] Panoramas will be served from Backblaze B2: ${b2DownloadUrl}/panoramas/`);
+const b2Enabled = Boolean(B2_KEY_ID && B2_KEY && B2_BUCKET);
+if (b2Enabled) {
+  console.log(`[server] Panoramas will be served from PRIVATE Backblaze B2 bucket "${B2_BUCKET}" via signed redirects.`);
 } else {
-  console.log('[server] No B2_DOWNLOAD_URL set — serving panoramas from local disk.');
+  console.log('[server] B2 not configured — serving panoramas from local disk.');
+}
+
+// How long each minted download token stays valid. The client only needs it for
+// the moment of the redirect, so a modest window is plenty; we refresh well before
+// expiry. B2 allows up to 604800s (7 days).
+const B2_TOKEN_TTL_S = 24 * 60 * 60; // 24h
+// Refresh the cached token once it's within this margin of expiring, so an
+// in-flight request never gets handed a token that dies mid-download.
+const B2_TOKEN_REFRESH_MARGIN_MS = 60 * 60 * 1000; // 1h
+
+// Cached B2 state: the account auth (apiUrl/downloadUrl/bucketId) and the current
+// download token with its expiry. Both are refreshed lazily on demand.
+let b2Account = null;              // { downloadUrl, bucketId } — the durable bits
+let b2DownloadToken = null;        // { token, expiresAt } — the short-lived bit
+let b2AuthInflight = null;         // dedupes concurrent refreshes into one API call
+
+// Authorize the account (b2_authorize_account) and remember downloadUrl + bucketId.
+// Cheap and rarely called (only when we need to mint a fresh download token).
+async function b2Authorize() {
+  const basic = Buffer.from(`${B2_KEY_ID}:${B2_KEY}`).toString('base64');
+  const r = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
+    headers: { Authorization: 'Basic ' + basic },
+  });
+  if (!r.ok) throw new Error('b2_authorize_account ' + r.status);
+  const d = await r.json();
+  const api = d.apiInfo.storageApi;
+  return {
+    apiUrl: api.apiUrl,
+    authToken: d.authorizationToken,
+    downloadUrl: api.downloadUrl,
+    // Prefer the explicit env id; else the id the key is restricted to (application
+    // keys scoped to one bucket report it here); else null (then B2_BUCKET_ID is required).
+    bucketId: B2_BUCKET_ID || api.bucketId || null,
+  };
+}
+
+// Return a valid download token for the panoramas/ prefix, minting a new one when
+// the cache is empty or near expiry. Concurrent callers share a single refresh.
+async function b2GetDownloadToken() {
+  const fresh = b2DownloadToken && (b2DownloadToken.expiresAt - Date.now() > B2_TOKEN_REFRESH_MARGIN_MS);
+  if (fresh) return b2DownloadToken.token;
+  if (b2AuthInflight) return b2AuthInflight;
+
+  b2AuthInflight = (async () => {
+    const acct = await b2Authorize();
+    if (!acct.bucketId) {
+      throw new Error('Could not determine B2 bucket id — set B2_BUCKET_ID in env.');
+    }
+    const r = await fetch(acct.apiUrl + '/b2api/v3/b2_get_download_authorization', {
+      method: 'POST',
+      headers: { Authorization: acct.authToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        bucketId: acct.bucketId,
+        fileNamePrefix: 'panoramas/',
+        validDurationInSeconds: B2_TOKEN_TTL_S,
+      }),
+    });
+    if (!r.ok) throw new Error('b2_get_download_authorization ' + r.status + ' ' + (await r.text()));
+    const d = await r.json();
+    b2Account = { downloadUrl: acct.downloadUrl, bucketId: acct.bucketId };
+    b2DownloadToken = { token: d.authorizationToken, expiresAt: Date.now() + B2_TOKEN_TTL_S * 1000 };
+    return b2DownloadToken.token;
+  })().finally(() => { b2AuthInflight = null; });
+
+  return b2AuthInflight;
 }
 
 // Unguessable per-player key that grants re-entry to a live room after a drop.
@@ -98,59 +167,34 @@ app.get('/locations.json', (_req, res) => {
   });
 });
 
-// --- Panorama proxy (Backblaze B2, private bucket) ---------------------------
-// Proxies /panoramas/* through the server so the bucket can stay private.
-// The client still gets the same URL (no config change), but the server
-// fetches from B2 with its credentials and streams the image back.
-// This uses server bandwidth — fine for a hobby project on Render free tier.
-// To avoid cache invalidation issues with immutable panorama assets, we set
-// a long client-side cache header and use the B2 object key directly.
-let b2S3 = null;
-if (B2_ENDPOINT && B2_KEY_ID && B2_KEY && B2_BUCKET) {
-  try {
-    b2S3 = new S3Client({
-      region: 'eu-central-003',
-      endpoint: B2_ENDPOINT,
-      credentials: { accessKeyId: B2_KEY_ID, secretAccessKey: B2_KEY },
-      forcePathStyle: true,
-    });
-    console.log('[server] B2 panorama proxy enabled (private bucket).');
-  } catch (e) {
-    console.warn('[server] B2 proxy init failed:', e.message);
-  }
-}
-
-app.get('/panoramas/*', async (req, res) => {
-  const relPath = req.params[0]; // e.g. "pano_1469;-5913/panorama_0.webp"
-  if (!b2S3) {
-    // B2 not configured — serve from local disk
-    const localPath = path.join(PUBLIC_DIR, 'panoramas', relPath);
-    return res.sendFile(localPath, (err) => {
-      if (err) res.status(404).end();
-    });
-  }
-
-  try {
-    const bucketKey = `panoramas/${relPath}`;
-    const cmd = new GetObjectCommand({ Bucket: B2_BUCKET, Key: bucketKey });
-    const result = await b2S3.send(cmd);
-
-    // Infer content type from extension
-    const ext = relPath.split('.').pop()?.toLowerCase();
-    const types = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
-    res.set('Content-Type', types[ext] || 'image/webp');
-    res.set('Cache-Control', 'public, max-age=86400'); // 1 day CDN cache on the proxy
-
-    // Stream from B2 to client
-    if (result.Body) {
-      for await (const chunk of result.Body) res.write(chunk);
+// --- Panorama proxy (Backblaze B2, PRIVATE bucket) ---------------------------
+// If B2 is configured, redirect /panoramas/* to B2's private download URL with a
+// short-lived, prefix-scoped signed token appended. The client then fetches the
+// image bytes straight from B2 (no bandwidth through us); the bucket stays private.
+if (b2Enabled) {
+  app.get('/panoramas/*', async (req, res) => {
+    const panoPath = req.params[0]; // path after /panoramas/, e.g. "pano_1484;-5913/panorama_0.webp"
+    // Guard against path traversal escaping the panoramas/ prefix the token covers.
+    if (panoPath.includes('..')) return res.status(400).end();
+    try {
+      const token = await b2GetDownloadToken();
+      // Percent-encode each path segment (folder ids contain ';' etc.) but keep
+      // the '/' separators. B2 also accepts the token as a query param.
+      const encoded = panoPath.split('/').map(encodeURIComponent).join('/');
+      const url = `${b2Account.downloadUrl}/file/${encodeURIComponent(B2_BUCKET)}/panoramas/${encoded}`
+        + `?Authorization=${encodeURIComponent(token)}`;
+      // Short-cache the redirect itself; the token far outlives it, so the browser
+      // can reuse the resolved B2 URL without hitting us for every face.
+      res.set('Cache-Control', 'public, max-age=300');
+      res.redirect(302, url);
+    } catch (e) {
+      console.error('[server] B2 panorama redirect failed:', e.message);
+      res.status(502).end();
     }
-    res.end();
-  } catch (e) {
-    console.warn(`[server] B2 panorama fetch failed: panoramas/${relPath} — ${e.message}`);
-    res.status(404).end();
-  }
-});
+  });
+} else {
+  // Local fallback: serve from ./public/panoramas via the express.static below.
+}
 
 // --- Dynmap tile proxy + cache --------------------------------------------
 // The guess map streams tiles from a THIRD-PARTY live Dynmap (map.ccnetmc.com).
