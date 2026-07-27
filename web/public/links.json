@@ -1122,27 +1122,9 @@
         "bearing": 178.2,
         "arrowYaw": 179.3,
         "dist": 15.27
-      },
-      {
-        "to": "pano_1178;-5550",
-        "bearing": 347.4,
-        "arrowYaw": 10.1,
-        "dist": 15.34
-      },
-      {
-        "to": "pano_1163;-5550",
-        "bearing": 309.1,
-        "arrowYaw": 48.4,
-        "dist": 23.98
       }
     ],
     "pano_1192;-5555": [
-      {
-        "to": "pano_1178;-5550",
-        "bearing": 288,
-        "arrowYaw": 156.6,
-        "dist": 15
-      },
       {
         "to": "pano_1181;-5565",
         "bearing": 226.6,
@@ -1150,153 +1132,7 @@
         "dist": 15.03
       }
     ],
-    "pano_1178;-5550": [
-      {
-        "to": "pano_1192;-5555",
-        "bearing": 108,
-        "arrowYaw": 165,
-        "dist": 15
-      },
-      {
-        "to": "pano_1163;-5550",
-        "bearing": 270.6,
-        "arrowYaw": 2.4,
-        "dist": 15.27
-      },
-      {
-        "to": "pano_1181;-5565",
-        "bearing": 167.4,
-        "arrowYaw": 105.6,
-        "dist": 15.34
-      }
-    ],
-    "pano_1163;-5550": [
-      {
-        "to": "pano_1178;-5550",
-        "bearing": 90.6,
-        "arrowYaw": 178.9,
-        "dist": 15.27
-      },
-      {
-        "to": "pano_1148;-5550",
-        "bearing": 269.5,
-        "arrowYaw": 360,
-        "dist": 15.3
-      },
-      {
-        "to": "pano_1181;-5565",
-        "bearing": 129.1,
-        "arrowYaw": 140.4,
-        "dist": 23.98
-      }
-    ],
-    "pano_1148;-5550": [
-      {
-        "to": "pano_1139;-5551",
-        "bearing": 267.1,
-        "arrowYaw": 2.4,
-        "dist": 9
-      },
-      {
-        "to": "pano_1132;-5550",
-        "bearing": 269.5,
-        "arrowYaw": 0,
-        "dist": 15.12
-      },
-      {
-        "to": "pano_1163;-5550",
-        "bearing": 89.5,
-        "arrowYaw": 180,
-        "dist": 15.3
-      },
-      {
-        "to": "pano_1143;-5565",
-        "bearing": 198.1,
-        "arrowYaw": 71.4,
-        "dist": 15.81
-      }
-    ],
-    "pano_1132;-5550": [
-      {
-        "to": "pano_1139;-5551",
-        "bearing": 93.1,
-        "arrowYaw": 176.5,
-        "dist": 6.14
-      },
-      {
-        "to": "pano_1148;-5550",
-        "bearing": 89.5,
-        "arrowYaw": 180.1,
-        "dist": 15.12
-      },
-      {
-        "to": "pano_1117;-5550",
-        "bearing": 269.5,
-        "arrowYaw": 0.1,
-        "dist": 15.18
-      },
-      {
-        "to": "pano_1137;-5536",
-        "bearing": 16.6,
-        "arrowYaw": 253,
-        "dist": 15.34
-      }
-    ],
-    "pano_1117;-5550": [
-      {
-        "to": "pano_1132;-5550",
-        "bearing": 89.5,
-        "arrowYaw": 179.9,
-        "dist": 15.18
-      },
-      {
-        "to": "pano_1102;-5551",
-        "bearing": 269.4,
-        "arrowYaw": 360,
-        "dist": 15.27
-      },
-      {
-        "to": "pano_1139;-5551",
-        "bearing": 90.5,
-        "arrowYaw": 178.9,
-        "dist": 21.31
-      }
-    ],
-    "pano_1102;-5551": [
-      {
-        "to": "pano_1117;-5550",
-        "bearing": 89.4,
-        "arrowYaw": 180,
-        "dist": 15.27
-      },
-      {
-        "to": "pano_1087;-5550",
-        "bearing": 270.1,
-        "arrowYaw": 359.3,
-        "dist": 15.27
-      }
-    ],
-    "pano_1087;-5550": [
-      {
-        "to": "pano_1075;-5541",
-        "bearing": 309.9,
-        "arrowYaw": 320.5,
-        "dist": 15.14
-      },
-      {
-        "to": "pano_1102;-5551",
-        "bearing": 90.1,
-        "arrowYaw": 180.3,
-        "dist": 15.27
-      }
-    ],
     "pano_1075;-5541": [
-      {
-        "to": "pano_1087;-5550",
-        "bearing": 129.9,
-        "arrowYaw": 229.8,
-        "dist": 15.14
-      },
       {
         "to": "pano_1075;-5526",
         "bearing": 359.6,
@@ -1434,33 +1270,9 @@
         "bearing": 173.4,
         "arrowYaw": 8.3,
         "dist": 15.13
-      },
-      {
-        "to": "pano_1132;-5550",
-        "bearing": 196.6,
-        "arrowYaw": 345.1,
-        "dist": 15.34
-      },
-      {
-        "to": "pano_1148;-5550",
-        "bearing": 143.6,
-        "arrowYaw": 38.1,
-        "dist": 18.09
       }
     ],
     "pano_1139;-5551": [
-      {
-        "to": "pano_1132;-5550",
-        "bearing": 273.1,
-        "arrowYaw": 268.6,
-        "dist": 6.14
-      },
-      {
-        "to": "pano_1148;-5550",
-        "bearing": 87.1,
-        "arrowYaw": 94.6,
-        "dist": 9
-      },
       {
         "to": "pano_1143;-5565",
         "bearing": 164.4,
@@ -1486,18 +1298,6 @@
         "bearing": 171.7,
         "arrowYaw": 9.9,
         "dist": 15.36
-      },
-      {
-        "to": "pano_1148;-5550",
-        "bearing": 18.1,
-        "arrowYaw": 163.5,
-        "dist": 15.81
-      },
-      {
-        "to": "pano_1132;-5550",
-        "bearing": 325.6,
-        "arrowYaw": 216.1,
-        "dist": 18.05
       }
     ],
     "pano_1145;-5580": [
