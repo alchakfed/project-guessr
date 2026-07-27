@@ -1144,8 +1144,10 @@ async function openLocationsOverlay() {
     }).addTo(map);
     // Click a dot to see which panorama it is (folder id + world coords).
     if (p.folder) {
+      const folder = p.folder;
       dot.bindPopup(
-        `<b>${p.folder}</b><br>x ${Math.round(p.x)}, z ${Math.round(p.z)}`,
+        `<b>${folder}</b><br>x ${Math.round(p.x)}, z ${Math.round(p.z)}
+         <br><button class="loc-view-btn" data-folder="${folder}">View panorama</button>`,
         { className: 'loc-popup' },
       );
     }
@@ -1161,6 +1163,17 @@ async function openLocationsOverlay() {
 function closeLocationsOverlay() {
   $('locationsOverlay').classList.add('hidden');
   if (state.locationsMap) { state.locationsMap.remove(); state.locationsMap = null; }
+}
+
+// Enter a free-roam Street View session for a specific panorama from the
+// locations overlay. Closes the overlay and loads the panorama with movement
+// enabled (if links.json is available), same as in a game round.
+function viewLocationPanorama(folder) {
+  closeLocationsOverlay();
+  showScreen('game');
+  // Ensure movement is enabled for this session (mirrors CFG.ENABLE_MOVEMENT).
+  state.allowMove = true;
+  loadPanorama(folder, { freshView: true });
 }
 
 /* ------------------------------------------------------------------ *
@@ -1439,6 +1452,11 @@ window.addEventListener('DOMContentLoaded', () => {
   $('locationsOverlay').addEventListener('click', (e) => {
     // Click on the dimmed backdrop (not the card) closes it.
     if (e.target === $('locationsOverlay')) closeLocationsOverlay();
+    // "View panorama" button in a dot popup
+    if (e.target.matches('.loc-view-btn')) {
+      const folder = e.target.dataset.folder;
+      if (folder) viewLocationPanorama(folder);
+    }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('locationsOverlay').classList.contains('hidden')) {

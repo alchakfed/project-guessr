@@ -52,6 +52,12 @@
         "bearing": 341.8,
         "arrowYaw": 290.2,
         "dist": 15.32
+      },
+      {
+        "to": "pano_1412;-5913",
+        "bearing": 267.5,
+        "arrowYaw": 4.5,
+        "dist": 26.41
       }
     ],
     "pano_1434;-5897": [
@@ -66,6 +72,12 @@
         "bearing": 161.8,
         "arrowYaw": 195.2,
         "dist": 15.32
+      },
+      {
+        "to": "pano_1412;-5913",
+        "bearing": 234,
+        "arrowYaw": 123,
+        "dist": 26.7
       }
     ],
     "pano_1433;-5882": [
@@ -484,6 +496,18 @@
         "bearing": 271.2,
         "arrowYaw": 179.7,
         "dist": 15.26
+      },
+      {
+        "to": "pano_1438;-5912",
+        "bearing": 87.5,
+        "arrowYaw": 3.3,
+        "dist": 26.41
+      },
+      {
+        "to": "pano_1434;-5897",
+        "bearing": 54,
+        "arrowYaw": 36.8,
+        "dist": 26.7
       }
     ],
     "pano_1366;-5912": [
@@ -3048,21 +3072,9 @@
         "bearing": 91.2,
         "arrowYaw": 0,
         "dist": 15.14
-      },
-      {
-        "to": "pano_1285;-5399",
-        "bearing": 81,
-        "arrowYaw": 10.2,
-        "dist": 19.28
       }
     ],
     "pano_1281;-5402": [
-      {
-        "to": "pano_1285;-5399",
-        "bearing": 49.4,
-        "arrowYaw": 41.8,
-        "dist": 5.13
-      },
       {
         "to": "pano_1265;-5402",
         "bearing": 271.2,
@@ -3084,18 +3096,6 @@
     ],
     "pano_1296;-5403": [
       {
-        "to": "pano_1299;-5402",
-        "bearing": 75.7,
-        "arrowYaw": 15.5,
-        "dist": 3.53
-      },
-      {
-        "to": "pano_1285;-5399",
-        "bearing": 287.9,
-        "arrowYaw": 163.3,
-        "dist": 11.94
-      },
-      {
         "to": "pano_1281;-5402",
         "bearing": 271.2,
         "arrowYaw": 180,
@@ -3106,15 +3106,15 @@
         "bearing": 87.6,
         "arrowYaw": 3.6,
         "dist": 15.37
+      },
+      {
+        "to": "pano_1282;-5384",
+        "bearing": 323.3,
+        "arrowYaw": 127.9,
+        "dist": 23.12
       }
     ],
     "pano_1311;-5402": [
-      {
-        "to": "pano_1299;-5402",
-        "bearing": 271.1,
-        "arrowYaw": 180.2,
-        "dist": 11.94
-      },
       {
         "to": "pano_1326;-5402",
         "bearing": 91.2,
@@ -4274,12 +4274,6 @@
     ],
     "pano_1282;-5384": [
       {
-        "to": "pano_1285;-5399",
-        "bearing": 170.6,
-        "arrowYaw": 34.2,
-        "dist": 15.06
-      },
-      {
         "to": "pano_1281;-5369",
         "bearing": 356.3,
         "arrowYaw": 208.5,
@@ -4296,58 +4290,6 @@
         "bearing": 143.3,
         "arrowYaw": 61.5,
         "dist": 23.12
-      }
-    ],
-    "pano_1285;-5399": [
-      {
-        "to": "pano_1281;-5402",
-        "bearing": 229.4,
-        "arrowYaw": 252.5,
-        "dist": 5.13
-      },
-      {
-        "to": "pano_1296;-5403",
-        "bearing": 107.9,
-        "arrowYaw": 14,
-        "dist": 11.94
-      },
-      {
-        "to": "pano_1299;-5402",
-        "bearing": 100.7,
-        "arrowYaw": 21.2,
-        "dist": 15.04
-      },
-      {
-        "to": "pano_1282;-5384",
-        "bearing": 350.6,
-        "arrowYaw": 131.3,
-        "dist": 15.06
-      }
-    ],
-    "pano_1299;-5402": [
-      {
-        "to": "pano_1296;-5403",
-        "bearing": 255.7,
-        "arrowYaw": 196.2,
-        "dist": 3.53
-      },
-      {
-        "to": "pano_1311;-5402",
-        "bearing": 91.1,
-        "arrowYaw": 0.9,
-        "dist": 11.94
-      },
-      {
-        "to": "pano_1285;-5399",
-        "bearing": 280.7,
-        "arrowYaw": 171.2,
-        "dist": 15.04
-      },
-      {
-        "to": "pano_1281;-5402",
-        "bearing": 268.3,
-        "arrowYaw": 183.6,
-        "dist": 18.69
       }
     ],
     "pano_1468;-5318": [
@@ -9184,6 +9126,12 @@
         "bearing": 157.1,
         "arrowYaw": 308.8,
         "dist": 22.13
+      },
+      {
+        "to": "pano_1875;-5542",
+        "bearing": 269.7,
+        "arrowYaw": 196.1,
+        "dist": 28.06
       }
     ],
     "pano_1918;-5545": [
@@ -9576,6 +9524,12 @@
         "bearing": 58.1,
         "arrowYaw": 214.3,
         "dist": 19.69
+      },
+      {
+        "to": "pano_1903;-5542",
+        "bearing": 89.7,
+        "arrowYaw": 182.7,
+        "dist": 28.06
       }
     ],
     "pano_1860;-5543": [

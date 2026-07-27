@@ -2693,26 +2693,6 @@
       "world": "play.ccnetmc.com"
     },
     {
-      "id": "pano_1285;-5399",
-      "folder": "pano_1285;-5399",
-      "x": 1285.01,
-      "z": -5399.34,
-      "y": 64,
-      "yaw": 1318.09,
-      "dimension": "minecraft:overworld",
-      "world": "play.ccnetmc.com"
-    },
-    {
-      "id": "pano_1299;-5402",
-      "folder": "pano_1299;-5402",
-      "x": 1299.79,
-      "z": -5402.14,
-      "y": 64,
-      "yaw": 1348.07,
-      "dimension": "minecraft:overworld",
-      "world": "play.ccnetmc.com"
-    },
-    {
       "id": "pano_1468;-5318",
       "folder": "pano_1468;-5318",
       "x": 1468.9,
