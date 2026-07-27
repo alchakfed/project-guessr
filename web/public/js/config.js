@@ -8,8 +8,10 @@
 window.PG_CONFIG = {
   // e.g. 'ws://192.168.1.50:3000' — empty string = same origin as this page.
   WS_URL: '',
-  // Base path for panorama images and map assets (served statically).
-  PANO_BASE_URL: '/panoramas',
+  // Base path for panorama images.
+  // LOCAL: '/panoramas' (served by this server)
+  // B2: 'https://f003.backblazeb2.com/file/ccguessr-db/panoramas' (set B2_DOWNLOAD_URL in Render env)
+  PANO_BASE_URL: 'https://f003.backblazeb2.com/file/ccguessr-db/panoramas',
   MAP_IMAGE_URL: '/map/map.png',
   // File extension of the panorama faces. Set to 'webp' (or 'jpg') after running
   // tools/compress-panoramas.js with that format; leave 'png' for raw captures.

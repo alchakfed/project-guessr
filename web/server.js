@@ -32,6 +32,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
+// Backblaze B2 panorama hosting (optional)
+// Set these in Render/env to serve panoramas from B2 instead of local disk.
+// If not set, falls back to local ./public/panoramas/
+const B2_KEY_ID = process.env.B2_KEY_ID;
+const B2_KEY = process.env.B2_KEY;
+const B2_BUCKET = process.env.B2_BUCKET;
+const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
+const B2_ENDPOINT = process.env.B2_ENDPOINT || 'https://s3.us-west-004.backblazeb2.com';
+const B2_DOWNLOAD_URL = process.env.B2_DOWNLOAD_URL; // e.g. https://f001.backblazeb2.com/file/mybucket
+
+let b2DownloadUrl = null;
+if (B2_DOWNLOAD_URL) {
+  b2DownloadUrl = B2_DOWNLOAD_URL.replace(/\/$/, '');
+  console.log(`[server] Panoramas will be served from Backblaze B2: ${b2DownloadUrl}/panoramas/`);
+} else {
+  console.log('[server] No B2_DOWNLOAD_URL set — serving panoramas from local disk.');
+}
+
 // Unguessable per-player key that grants re-entry to a live room after a drop.
 // Returned to the client in 'joined' so it can persist the key + room code and
 // reconnect later. Keep it long: it's the only thing standing between a random
@@ -79,6 +97,23 @@ app.get('/locations.json', (_req, res) => {
     points: manifest.rounds.map((r) => ({ x: r.x, z: r.z, folder: r.folder || r.id })),
   });
 });
+
+// --- Panorama proxy (Backblaze B2) -------------------------------------------
+// If B2_DOWNLOAD_URL is set, redirect /panoramas/* to the B2 public download URL.
+// This keeps the server stateless (no bandwidth through the server) and lets
+// Render free tier serve the app while B2 handles the heavy image storage.
+if (b2DownloadUrl) {
+  app.get('/panoramas/*', (req, res) => {
+    // req.params[0] contains the path after /panoramas/
+    const panoPath = req.params[0];
+    const url = `${b2DownloadUrl}/panoramas/${panoPath}`;
+    // 302 redirect to B2 — client fetches directly from B2 CDN
+    res.redirect(302, url);
+  });
+} else {
+  // Local fallback: serve from ./public/panoramas (existing behavior)
+  // The express.static middleware below already covers this.
+}
 
 // --- Dynmap tile proxy + cache --------------------------------------------
 // The guess map streams tiles from a THIRD-PARTY live Dynmap (map.ccnetmc.com).
