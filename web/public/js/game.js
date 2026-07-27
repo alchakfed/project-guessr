@@ -933,6 +933,12 @@ function preloadNeighbours(folder) {
     preloadedPanos.add(n.to);
     for (const src of panoUrls(n.to)) {
       const img = new Image();
+      // Pannellum loads cube faces as CORS textures (crossOrigin="anonymous").
+      // The preload MUST request them the same way, or the browser caches a
+      // non-CORS copy and later hands it to WebGL, which rejects it ("the file
+      // could not be accessed"). Set crossOrigin BEFORE src so it applies to
+      // this request. Harmless for the local-disk (same-origin) case.
+      img.crossOrigin = 'anonymous';
       img.decoding = 'async';
       img.src = src;
     }
