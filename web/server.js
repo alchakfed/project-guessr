@@ -39,7 +39,7 @@ const B2_KEY_ID = process.env.B2_KEY_ID;
 const B2_KEY = process.env.B2_KEY;
 const B2_BUCKET = process.env.B2_BUCKET;
 const B2_BUCKET_ID = process.env.B2_BUCKET_ID;
-const B2_ENDPOINT = process.env.B2_ENDPOINT || 'https://s3.us-west-004.backblazeb2.com';
+const B2_ENDPOINT = process.env.B2_ENDPOINT;
 const B2_DOWNLOAD_URL = process.env.B2_DOWNLOAD_URL; // e.g. https://f001.backblazeb2.com/file/mybucket
 
 let b2DownloadUrl = null;
@@ -98,22 +98,59 @@ app.get('/locations.json', (_req, res) => {
   });
 });
 
-// --- Panorama proxy (Backblaze B2) -------------------------------------------
-// If B2_DOWNLOAD_URL is set, redirect /panoramas/* to the B2 public download URL.
-// This keeps the server stateless (no bandwidth through the server) and lets
-// Render free tier serve the app while B2 handles the heavy image storage.
-if (b2DownloadUrl) {
-  app.get('/panoramas/*', (req, res) => {
-    // req.params[0] contains the path after /panoramas/
-    const panoPath = req.params[0];
-    const url = `${b2DownloadUrl}/panoramas/${panoPath}`;
-    // 302 redirect to B2 — client fetches directly from B2 CDN
-    res.redirect(302, url);
-  });
-} else {
-  // Local fallback: serve from ./public/panoramas (existing behavior)
-  // The express.static middleware below already covers this.
+// --- Panorama proxy (Backblaze B2, private bucket) ---------------------------
+// Proxies /panoramas/* through the server so the bucket can stay private.
+// The client still gets the same URL (no config change), but the server
+// fetches from B2 with its credentials and streams the image back.
+// This uses server bandwidth — fine for a hobby project on Render free tier.
+// To avoid cache invalidation issues with immutable panorama assets, we set
+// a long client-side cache header and use the B2 object key directly.
+let b2S3 = null;
+if (B2_ENDPOINT && B2_KEY_ID && B2_KEY && B2_BUCKET) {
+  try {
+    b2S3 = new S3Client({
+      region: 'eu-central-003',
+      endpoint: B2_ENDPOINT,
+      credentials: { accessKeyId: B2_KEY_ID, secretAccessKey: B2_KEY },
+      forcePathStyle: true,
+    });
+    console.log('[server] B2 panorama proxy enabled (private bucket).');
+  } catch (e) {
+    console.warn('[server] B2 proxy init failed:', e.message);
+  }
 }
+
+app.get('/panoramas/*', async (req, res) => {
+  const relPath = req.params[0]; // e.g. "pano_1469;-5913/panorama_0.webp"
+  if (!b2S3) {
+    // B2 not configured — serve from local disk
+    const localPath = path.join(PUBLIC_DIR, 'panoramas', relPath);
+    return res.sendFile(localPath, (err) => {
+      if (err) res.status(404).end();
+    });
+  }
+
+  try {
+    const bucketKey = `panoramas/${relPath}`;
+    const cmd = new GetObjectCommand({ Bucket: B2_BUCKET, Key: bucketKey });
+    const result = await b2S3.send(cmd);
+
+    // Infer content type from extension
+    const ext = relPath.split('.').pop()?.toLowerCase();
+    const types = { webp: 'image/webp', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+    res.set('Content-Type', types[ext] || 'image/webp');
+    res.set('Cache-Control', 'public, max-age=86400'); // 1 day CDN cache on the proxy
+
+    // Stream from B2 to client
+    if (result.Body) {
+      for await (const chunk of result.Body) res.write(chunk);
+    }
+    res.end();
+  } catch (e) {
+    console.warn(`[server] B2 panorama fetch failed: panoramas/${relPath} — ${e.message}`);
+    res.status(404).end();
+  }
+});
 
 // --- Dynmap tile proxy + cache --------------------------------------------
 // The guess map streams tiles from a THIRD-PARTY live Dynmap (map.ccnetmc.com).
