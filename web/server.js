@@ -32,91 +32,38 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Backblaze B2 panorama hosting (optional, PRIVATE bucket)
-// Set these in Render/env to serve panoramas from a private B2 bucket instead of
-// local disk. If B2_KEY_ID/B2_KEY/B2_BUCKET are unset, falls back to ./public/panoramas/.
+// Cloudinary panorama hosting (optional)
+// Set these in Render/env to serve panoramas from Cloudinary instead of local
+// disk. If CLOUDINARY_CLOUD_NAME is unset, falls back to ./public/panoramas/.
 //
-// Because the bucket is PRIVATE, the browser can't read the public /file/ URL
-// directly (B2 returns 401 "unauthorized"). Instead the server mints a short-lived
-// download token (b2_get_download_authorization, scoped to the panoramas/ prefix)
-// and 302-redirects each /panoramas/* request to B2 with ?Authorization=<token>.
-// The image bytes still stream B2 -> browser directly (no bandwidth through here);
-// only the tiny token-minting call runs on the server, and it's cached + reused.
-const B2_KEY_ID = process.env.B2_KEY_ID;
-const B2_KEY = process.env.B2_KEY;
-const B2_BUCKET = process.env.B2_BUCKET;                 // bucket NAME, e.g. ccguessr-db
-const B2_BUCKET_ID = process.env.B2_BUCKET_ID;           // optional; auto-discovered from auth if omitted
+// Cloudinary delivery URLs are public CDN URLs, so the server just 302-redirects
+// each /panoramas/* request to the matching res.cloudinary.com URL. The image
+// bytes stream Cloudinary -> browser directly (no bandwidth through here), and
+// there's no token to mint or refresh.
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
+// Base folder inside the Cloudinary account under which panoramas were uploaded
+// (matches CLOUDINARY_FOLDER in the upload tool; defaults to "panoramas").
+const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || 'panoramas';
 
-const b2Enabled = Boolean(B2_KEY_ID && B2_KEY && B2_BUCKET);
-if (b2Enabled) {
-  console.log(`[server] Panoramas will be served from PRIVATE Backblaze B2 bucket "${B2_BUCKET}" via signed redirects.`);
+const cloudinaryEnabled = Boolean(CLOUDINARY_CLOUD_NAME);
+if (cloudinaryEnabled) {
+  console.log(`[server] Panoramas will be served from Cloudinary cloud "${CLOUDINARY_CLOUD_NAME}" via redirects.`);
 } else {
-  console.log('[server] B2 not configured — serving panoramas from local disk.');
+  console.log('[server] Cloudinary not configured — serving panoramas from local disk.');
 }
 
-// How long each minted download token stays valid. The client only needs it for
-// the moment of the redirect, so a modest window is plenty; we refresh well before
-// expiry. B2 allows up to 604800s (7 days).
-const B2_TOKEN_TTL_S = 24 * 60 * 60; // 24h
-// Refresh the cached token once it's within this margin of expiring, so an
-// in-flight request never gets handed a token that dies mid-download.
-const B2_TOKEN_REFRESH_MARGIN_MS = 60 * 60 * 1000; // 1h
-
-// Cached B2 state: the account auth (apiUrl/downloadUrl/bucketId) and the current
-// download token with its expiry. Both are refreshed lazily on demand.
-let b2Account = null;              // { downloadUrl, bucketId } — the durable bits
-let b2DownloadToken = null;        // { token, expiresAt } — the short-lived bit
-let b2AuthInflight = null;         // dedupes concurrent refreshes into one API call
-
-// Authorize the account (b2_authorize_account) and remember downloadUrl + bucketId.
-// Cheap and rarely called (only when we need to mint a fresh download token).
-async function b2Authorize() {
-  const basic = Buffer.from(`${B2_KEY_ID}:${B2_KEY}`).toString('base64');
-  const r = await fetch('https://api.backblazeb2.com/b2api/v3/b2_authorize_account', {
-    headers: { Authorization: 'Basic ' + basic },
-  });
-  if (!r.ok) throw new Error('b2_authorize_account ' + r.status);
-  const d = await r.json();
-  const api = d.apiInfo.storageApi;
-  return {
-    apiUrl: api.apiUrl,
-    authToken: d.authorizationToken,
-    downloadUrl: api.downloadUrl,
-    // Prefer the explicit env id; else the id the key is restricted to (application
-    // keys scoped to one bucket report it here); else null (then B2_BUCKET_ID is required).
-    bucketId: B2_BUCKET_ID || api.bucketId || null,
-  };
-}
-
-// Return a valid download token for the panoramas/ prefix, minting a new one when
-// the cache is empty or near expiry. Concurrent callers share a single refresh.
-async function b2GetDownloadToken() {
-  const fresh = b2DownloadToken && (b2DownloadToken.expiresAt - Date.now() > B2_TOKEN_REFRESH_MARGIN_MS);
-  if (fresh) return b2DownloadToken.token;
-  if (b2AuthInflight) return b2AuthInflight;
-
-  b2AuthInflight = (async () => {
-    const acct = await b2Authorize();
-    if (!acct.bucketId) {
-      throw new Error('Could not determine B2 bucket id — set B2_BUCKET_ID in env.');
-    }
-    const r = await fetch(acct.apiUrl + '/b2api/v3/b2_get_download_authorization', {
-      method: 'POST',
-      headers: { Authorization: acct.authToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bucketId: acct.bucketId,
-        fileNamePrefix: 'panoramas/',
-        validDurationInSeconds: B2_TOKEN_TTL_S,
-      }),
-    });
-    if (!r.ok) throw new Error('b2_get_download_authorization ' + r.status + ' ' + (await r.text()));
-    const d = await r.json();
-    b2Account = { downloadUrl: acct.downloadUrl, bucketId: acct.bucketId };
-    b2DownloadToken = { token: d.authorizationToken, expiresAt: Date.now() + B2_TOKEN_TTL_S * 1000 };
-    return b2DownloadToken.token;
-  })().finally(() => { b2AuthInflight = null; });
-
-  return b2AuthInflight;
+// Build the public Cloudinary delivery URL for a panorama path like
+// "pano_1484;-5913/panorama_0.webp". Cloudinary public_ids carry no extension,
+// so the delivered format is appended after the (extension-less) public_id.
+function cloudinaryUrlFor(panoPath) {
+  const dot = panoPath.lastIndexOf('.');
+  const ext = dot >= 0 ? panoPath.slice(dot + 1) : 'webp';
+  const noExt = dot >= 0 ? panoPath.slice(0, dot) : panoPath;
+  // Percent-encode each segment (folder ids contain ';' etc.) but keep the '/'
+  // separators and the trailing ".<ext>".
+  const publicId = `${CLOUDINARY_FOLDER}/${noExt}`;
+  const encoded = publicId.split('/').map(encodeURIComponent).join('/');
+  return `https://res.cloudinary.com/${encodeURIComponent(CLOUDINARY_CLOUD_NAME)}/image/upload/${encoded}.${ext}`;
 }
 
 // Unguessable per-player key that grants re-entry to a live room after a drop.
@@ -167,28 +114,23 @@ app.get('/locations.json', (_req, res) => {
   });
 });
 
-// --- Panorama proxy (Backblaze B2, PRIVATE bucket) ---------------------------
-// If B2 is configured, redirect /panoramas/* to B2's private download URL with a
-// short-lived, prefix-scoped signed token appended. The client then fetches the
-// image bytes straight from B2 (no bandwidth through us); the bucket stays private.
-if (b2Enabled) {
+// --- Panorama proxy (Cloudinary) ---------------------------------------------
+// If Cloudinary is configured, redirect /panoramas/* to the public Cloudinary
+// delivery URL. The client then fetches the image bytes straight from Cloudinary's
+// CDN (no bandwidth through us).
+if (cloudinaryEnabled) {
   app.get('/panoramas/*', async (req, res) => {
     const panoPath = req.params[0]; // path after /panoramas/, e.g. "pano_1484;-5913/panorama_0.webp"
-    // Guard against path traversal escaping the panoramas/ prefix the token covers.
+    // Guard against path traversal escaping the panoramas/ prefix.
     if (panoPath.includes('..')) return res.status(400).end();
     try {
-      const token = await b2GetDownloadToken();
-      // Percent-encode each path segment (folder ids contain ';' etc.) but keep
-      // the '/' separators. B2 also accepts the token as a query param.
-      const encoded = panoPath.split('/').map(encodeURIComponent).join('/');
-      const url = `${b2Account.downloadUrl}/file/${encodeURIComponent(B2_BUCKET)}/panoramas/${encoded}`
-        + `?Authorization=${encodeURIComponent(token)}`;
-      // Short-cache the redirect itself; the token far outlives it, so the browser
-      // can reuse the resolved B2 URL without hitting us for every face.
+      const url = cloudinaryUrlFor(panoPath);
+      // Cloudinary URLs are stable, so the browser can cache the resolved target
+      // and skip hitting us for every face.
       res.set('Cache-Control', 'public, max-age=300');
       res.redirect(302, url);
     } catch (e) {
-      console.error('[server] B2 panorama redirect failed:', e.message);
+      console.error('[server] Cloudinary panorama redirect failed:', e.message);
       res.status(502).end();
     }
   });

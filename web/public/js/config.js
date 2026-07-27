@@ -10,9 +10,10 @@ window.PG_CONFIG = {
   WS_URL: '',
   // Base path for panorama images.
   // Leave as '/panoramas' — this server serves them, either from local disk or
-  // (when B2_KEY_ID/B2_KEY/B2_BUCKET are set) by signed-redirecting to a PRIVATE
-  // Backblaze B2 bucket. Do NOT hardcode the B2 /file/ URL here: a private bucket
-  // rejects unauthenticated browser reads with 401, and a public one would leak.
+  // (when CLOUDINARY_CLOUD_NAME is set) by 302-redirecting to Cloudinary's public
+  // CDN. You can also point this straight at your Cloudinary delivery base
+  // (https://res.cloudinary.com/<cloud>/image/upload/panoramas) to skip the
+  // server hop entirely.
   PANO_BASE_URL: '/panoramas',
   MAP_IMAGE_URL: '/map/map.png',
   // File extension of the panorama faces. Set to 'webp' (or 'jpg') after running
